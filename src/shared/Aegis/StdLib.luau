@@ -9,6 +9,8 @@
     • Only explicitly listed functions are exposed.
     • getfenv / setfenv are included as sandbox-safe proxies: they operate on
       the AegisVM scope chain and never expose the host Lua environment.
+    • io / file are excluded (not applicable to Roblox sandboxes).
+      os is included in part: time, clock, date, difftime.
     • loadstring, load, dofile, collectgarbage, and debug.* ARE included
       (permitted by Roblox Creator Store asset policy).
     • Roblox services, game, workspace, script, etc. are NOT included by
@@ -16,7 +18,6 @@
       StdLib.populate(scope).
     • table.* and string.* are provided in full (safe subset).
     • math.* is provided in full.
-    • io / os / file are excluded (not applicable to Roblox sandboxes).
     • pcall / xpcall / error / assert are provided with wrapping so that
       interpreter control-flow signals are not swallowed.
 
@@ -221,14 +222,12 @@ local function buildCore(scope, runtime)
     -- ipairs
     scope:defineGlobal("ipairs", native(ipairs))
 
-    -- pairs - supports __pairs metamethod
+    -- pairs - supports __pairs metamethod on any value (tables, userdata, etc.)
     scope:defineGlobal("pairs", native(function(tbl)
-        if type(tbl) == "table" then
-            local mt = getmetatable(tbl)
-            if mt then
-                local mm = rawget(mt, "__pairs")
-                if mm then return mm(tbl) end
-            end
+        local mt = getmetatable(tbl)
+        if mt then
+            local mm = rawget(mt, "__pairs")
+            if mm then return mm(tbl) end
         end
         return next, tbl, nil
     end))
@@ -817,7 +816,7 @@ local function hostGlobal(name)
     return ok and v or nil
 end
 
-local function buildRoblox(scope)
+local function buildRoblox(scope, runtime)
     -- ── Core game objects ────────────────────────────────────────────
     -- `game` is a proxy over the real DataModel that intercepts a handful of
     -- legacy / convenience methods while passing everything else through.
@@ -912,10 +911,20 @@ local function buildRoblox(scope)
         difftime = os.difftime,
     })
 
-    -- Deprecated global schedulers (still very common in the wild)
-    scope:defineGlobal("wait",  wait)
-    scope:defineGlobal("spawn", spawn)
-    scope:defineGlobal("delay", delay)
+    -- Deprecated global schedulers (still common in the wild).
+    -- spawn and delay receive a callback, so wrap interpreter closures.
+    local function wrapFn(fn)
+        if type(fn) == "table" and fn.__fn then
+            return function(...)
+                local args = { ... }
+                runtime:callFunctionMulti(fn, args)
+            end
+        end
+        return fn
+    end
+    scope:defineGlobal("wait", wait)
+    scope:defineGlobal("spawn", function(fn, ...) return spawn(wrapFn(fn), ...) end)
+    scope:defineGlobal("delay", function(t, fn) return delay(t, wrapFn(fn)) end)
 
     -- ── Roblox helpers ───────────────────────────────────────────────
     scope:defineGlobal("typeof",        typeof)
@@ -944,7 +953,7 @@ function StdLib.populate(scope, runtime)
     buildTask(scope, runtime)
     buildBuffer(scope)
     buildDebug(scope)
-    buildRoblox(scope)
+    buildRoblox(scope, runtime)
     buildGlobalTable(scope)
 end
 

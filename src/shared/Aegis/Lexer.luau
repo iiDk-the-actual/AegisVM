@@ -243,9 +243,11 @@ function Lexer:readLongBracketBody(level)
 
     local body = string.sub(self.source, contentStart, closePos - 1)
 
-    -- Advance position past the body and closing bracket,
-    -- updating line counter for newlines in the body.
-    for i = contentStart, closeEnd do
+    -- Advance line/column tracking for newlines inside the body only.
+    -- The closing bracket itself never contains newlines, so stopping at
+    -- closePos - 1 keeps lineStart anchored to the correct line start for
+    -- any tokens that follow on the same line as the closing bracket.
+    for i = contentStart, closePos - 1 do
         if string.sub(self.source, i, i) == "\n" then
             self.line = self.line + 1
             self.lineStart = i + 1

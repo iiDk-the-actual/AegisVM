@@ -123,16 +123,17 @@ Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 
 | Builder function | What it registers |
 |---|---|
-| `buildCore` | `print`, `warn`, `tostring`, `tonumber`, `type`, `typeof`, `error`, `assert`, `pcall`, `xpcall`, `select`, `ipairs`, `pairs`, `next`, `rawget/set/equal/len`, `unpack`, `setmetatable`, `getmetatable`, `_VERSION`, `_AEGIS_VERSION`, `loadstring`, `load`, `dofile`, `collectgarbage` |
-| `buildDebug` | `debug.*` (all members present on the host `debug` global) |
+| `buildCore` | `print`, `warn`, `tostring`, `tonumber`, `type`, `typeof`, `error`, `assert`, `pcall`, `xpcall`, `select`, `ipairs`, `pairs`, `next`, `rawget/set/equal/len`, `unpack`, `setmetatable`, `getmetatable`, `_VERSION`, `_AEGIS_VERSION`, `loadstring`, `load`, `dofile`, `collectgarbage`, `getfenv`, `setfenv` |
 | `buildString` | `string.*` (no metatable rawset) |
-| `buildTable` | `table.*` |
+| `buildTable` | `table.*` + Lua 5.1 compat: `foreach`, `foreachi`, `getn`, `maxn` |
 | `buildMath` | `math.*` + Luau extensions |
 | `buildBit32` | `bit32.*` |
 | `buildUtf8` | `utf8.*` |
 | `buildCoroutine` | `coroutine.*` |
-| `buildTask` | `task.spawn/defer/delay/wait/cancel` |
-| `buildRoblox` | `game` (proxy), `workspace`, `Enum`, `Instance`, `shared`, all value-type constructors, time globals, deprecated schedulers |
+| `buildTask` | `task.spawn/defer/delay/wait/cancel` (spawn/defer/delay wrap interpreter closures) |
+| `buildBuffer` | `buffer.*` (full Roblox buffer API) |
+| `buildDebug` | `debug.traceback/info/getinfo/getmetatable/setmetatable/profilebegin/profileend/resetmemorycategory/setmemorycategory` + sandboxed `getfenv`/`setfenv` |
+| `buildRoblox` | `game` (proxy), `workspace`, `Enum`, `Instance`, `shared`, `newproxy`, all value-type constructors, time globals, deprecated schedulers (spawn/delay wrap interpreter closures) |
 | `buildGlobalTable` | `_G` |
 
 **`game` proxy intercepts:**
@@ -142,8 +143,10 @@ Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 
 ---
 
-## `src/shared/Aegis/WebRbxmParser.luau`
+## `src/shared/Aegis/Libraries/WebRbxmParser.luau`
 Fetches and deserializes JSON-encoded rbxm object trees from the AegisVM convert endpoint. Used internally by the `game:GetObjects` proxy in StdLib. Scripts found in the tree are wrapped in sandboxed AegisVM runners (source stored as an attribute, real source is a template that requires a cloned Aegis module).
+
+`script.Parent.Parent:Clone()` is used to clone the full Aegis module tree into each sandboxed script. The path is Libraries -> Aegis - do not change without updating this clone path.
 
 ---
 

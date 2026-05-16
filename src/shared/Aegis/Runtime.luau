@@ -230,7 +230,15 @@ end
 
 -- ─── Table get with __index metamethod support ────────────────────────
 
-function Runtime:tableGet(tbl, key, line)
+function Runtime:tableGet(tbl, key, line, depth)
+    depth = depth or 0
+    if depth > 200 then
+        self:runtimeError(
+            "attempt to index: __index chain too long (possible circular reference)",
+            line
+        )
+    end
+
     local t = type(tbl)
 
     -- ── Plain Lua table ───────────────────────────────────────────────
@@ -247,7 +255,7 @@ function Runtime:tableGet(tbl, key, line)
         if type(index) == "function" or (type(index) == "table" and index.__fn) then
             return singleOf(self:callFunction(index, { tbl, key }))
         elseif type(index) == "table" then
-            return self:tableGet(index, key, line)
+            return self:tableGet(index, key, line, depth + 1)
         end
         return nil
 
