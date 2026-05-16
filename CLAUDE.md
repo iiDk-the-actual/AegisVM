@@ -17,6 +17,15 @@ If you discover a secret was already pushed, immediately: rewrite history to rem
 
 Claude Code has permission to commit, push, create branches, open pull requests, and create GitHub issues in this repository autonomously without asking for confirmation first.
 
+## Commits
+
+Every commit must be co-authored by both the user and Claude. Always use this trailer format:
+
+```
+Co-authored-by: iiDk-the-actual <54154105+iiDk-the-actual@users.noreply.github.com>
+Co-authored-by: Claude <noreply@anthropic.com>
+```
+
 ## Writing style
 
 Do not use fancy Unicode characters anywhere in this repo - not in code comments, not in markdown, not in commit messages. Specifically:
