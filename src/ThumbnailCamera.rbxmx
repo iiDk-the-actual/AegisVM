@@ -2,30 +2,30 @@
 	<Meta name="ExplicitAutoJoints">true</Meta>
 	<External>null</External>
 	<External>nil</External>
-	<Item class="Camera" referent="RBX9E021B53D2C048449234D3531CDBB5F9">
+	<Item class="Camera" referent="RBXBB94D4DED4414FD996DCDCFB63E8DD10">
 		<Properties>
 			<CoordinateFrame name="CFrame">
-				<X>0</X>
-				<Y>5</Y>
-				<Z>12</Z>
+				<X>-51.5759888</X>
+				<Y>126.382248</Y>
+				<Z>-74.5237885</Z>
 				<R00>1</R00>
 				<R01>0</R01>
-				<R02>0</R02>
-				<R10>0</R10>
-				<R11>1</R11>
-				<R12>0</R12>
+				<R02>-0</R02>
+				<R10>-0</R10>
+				<R11>0.999992251</R11>
+				<R12>0.003952011</R12>
 				<R20>0</R20>
-				<R21>0</R21>
-				<R22>1</R22>
+				<R21>-0.003952011</R21>
+				<R22>0.999992251</R22>
 			</CoordinateFrame>
 			<Ref name="CameraSubject">null</Ref>
 			<token name="CameraType">1</token>
-			<float name="FieldOfView">70</float>
+			<float name="FieldOfView">100</float>
 			<token name="FieldOfViewMode">0</token>
 			<CoordinateFrame name="Focus">
-				<X>0</X>
-				<Y>5</Y>
-				<Z>0</Z>
+				<X>-51.5759888</X>
+				<Y>126.374344</Y>
+				<Z>-76.5237808</Z>
 				<R00>1</R00>
 				<R01>0</R01>
 				<R02>0</R02>
@@ -46,7 +46,7 @@
 			<int64 name="SourceAssetId">-1</int64>
 			<BinaryString name="Tags"></BinaryString>
 		</Properties>
-		<Item class="Part" referent="RBXD63B4417D8C742A883800D00DA244869">
+		<Item class="Part" referent="RBX7ED7E2F2879D437EB5A231D14E1E4CA0">
 			<Properties>
 				<token name="shape">1</token>
 				<token name="formFactorRaw">3</token>
@@ -61,9 +61,9 @@
 				<token name="BottomSurface">4</token>
 				<token name="BottomSurfaceInput">0</token>
 				<CoordinateFrame name="CFrame">
-					<X>0</X>
-					<Y>5</Y>
-					<Z>0</Z>
+					<X>-51.5759888</X>
+					<Y>126.374344</Y>
+					<Z>-76.5237808</Z>
 					<R00>1</R00>
 					<R01>0</R01>
 					<R02>0</R02>
@@ -80,7 +80,7 @@
 				<bool name="CastShadow">false</bool>
 				<string name="CollisionGroup">Default</string>
 				<int name="CollisionGroupId">0</int>
-				<Color3uint8 name="Color3uint8">4294506744</Color3uint8>
+				<Color3uint8 name="Color3uint8">4278190080</Color3uint8>
 				<PhysicalProperties name="CustomPhysicalProperties">
 					<CustomPhysics>false</CustomPhysics>
 				</PhysicalProperties>
@@ -144,7 +144,7 @@
 				<int64 name="SourceAssetId">-1</int64>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
-			<Item class="Decal" referent="RBXB1698855292246E3ADE288FCA7A3DE43">
+			<Item class="Decal" referent="RBX24892C79EE67447188FB4FFAB2E6487A">
 				<Properties>
 					<Color3 name="Color3">
 						<R>1</R>
@@ -177,7 +177,7 @@
 					<BinaryString name="Tags"></BinaryString>
 				</Properties>
 			</Item>
-			<Item class="Decal" referent="RBX564028E83F404128AC37C53A32FDB70D">
+			<Item class="Decal" referent="RBX50EDA77B84734AA682675BD61055FB12">
 				<Properties>
 					<Color3 name="Color3">
 						<R>1</R>
@@ -211,7 +211,7 @@
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="Part" referent="RBXD539BA6154E0467FBC6199EA20B4099B">
+		<Item class="Part" referent="RBX204746E5660B4F3EA76CB6476829F660">
 			<Properties>
 				<token name="shape">1</token>
 				<token name="formFactorRaw">3</token>
@@ -226,9 +226,9 @@
 				<token name="BottomSurface">4</token>
 				<token name="BottomSurfaceInput">0</token>
 				<CoordinateFrame name="CFrame">
-					<X>0</X>
-					<Y>5</Y>
-					<Z>0.150000006</Z>
+					<X>-51.5759888</X>
+					<Y>126.374344</Y>
+					<Z>-76.5237808</Z>
 					<R00>1</R00>
 					<R01>0</R01>
 					<R02>0</R02>
@@ -305,7 +305,24 @@
 				<BinaryString name="AttributesSerialize"></BinaryString>
 				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
 				<bool name="DefinesCapabilities">false</bool>
-				<string name="Name">Background</string>
+				<string name="Name">Part</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX7FE55F40E47E49BDA0D1D56DBF56F5DB">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[if script.Parent:IsA("Camera") and script.Parent.Name == "ThumbnailCamera" then
+	script.Parent:Destroy()
+end]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">0</token>
+				<string name="ScriptGuid">{AA597E46-FA69-467F-AD28-CF22AAC10C86}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Destroyer</string>
 				<int64 name="SourceAssetId">-1</int64>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
