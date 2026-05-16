@@ -122,6 +122,64 @@ Aegis.newSandbox({ maxCallDepth, noStdLib, globals })
 sandbox.scope:defineGlobal(name, value)            -- inject host values
 ```
 
+## Creating a Release
+
+Follow these steps in order. Do not skip or reorder them.
+
+### 1. Bump the version constant
+
+Edit `src/shared/Aegis/Constants.luau` and increment `Constants.VERSION`.
+Use a plain integer string: "1", "2", "3", and so on.
+
+### 2. Commit the bump
+
+```
+chore: bump version to {N}
+```
+
+### 3. Create the GitHub release
+
+```bash
+gh release create "{N}" \
+  --repo AegisLua/AegisVM \
+  --title "Version {N}" \
+  --notes "..."
+```
+
+Tag and title must match exactly: tag is the bare number (e.g. `3`), title is `Version 3`.
+
+After the release is published, the CI workflow triggers automatically and:
+- Builds the `.rbxm` with Rojo using `model.project.json`
+- Uploads the `.rbxm` as a release asset
+- Patches the Roblox Creator Store asset with the new file, name, and description
+
+### GitHub release body template
+
+Use `gh release view {prev}` or `git log {prev}..HEAD --oneline` to gather the
+changelog since the last tag, then fill in this template:
+
+```
+AegisVM Version {N}
+
+Changes since Version {N-1}:
+
+New features:
+- ...
+
+Bug fixes:
+- ...
+
+The module is available on the Roblox Creator Store (asset 115970020351857)
+and via require(115970020351857).
+
+Full changelog: https://github.com/AegisLua/AegisVM/compare/{N-1}...{N}
+```
+
+Keep each bullet short (one line). Do not use em dashes, en dashes, or fancy
+Unicode anywhere in the release body (same rule as the rest of this repo).
+
+---
+
 ## Sandbox restrictions
 
 Direct service globals (`Players`, `RunService`, etc.) are intentionally absent. Guest code must use `game:GetService("ServiceName")`. The sole exception is `workspace` (lowercase), which Roblox itself exposes as a global.
