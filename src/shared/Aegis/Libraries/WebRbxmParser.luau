@@ -36,7 +36,8 @@ local function makeAegisScript(opts)
 
     -- Clone the entire Aegis module tree so each sandboxed script has its
     -- own self-contained interpreter with no shared state.
-    local aegisClone = script.Parent:Clone()
+    -- script.Parent is Libraries; script.Parent.Parent is Aegis itself.
+    local aegisClone = script.Parent.Parent:Clone()
     aegisClone.Name = "_aegis"
     aegisClone.Parent = obj
 
