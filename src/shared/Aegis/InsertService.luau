@@ -6,6 +6,20 @@ local HttpService = game:GetService("HttpService")
 local InsertService = game:GetService("InsertService")
 local NewScript = require(script.NewScript)
 
+--[[ 
+
+TODO: Replace NewScript module with 4 scripts that call Aegis' compile function.
+
+Example (script, localscript, script w/ clientruncontext):
+local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
+script:FindFirstChild("_aegisModule").run(source)
+
+Example (modulescript):
+local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
+return script:FindFirstChild("_aegisModule").run(source)
+
+]]--
+
 local function decodeKey(class, key)
 	if key == "Color3" then
 		return "Color"
