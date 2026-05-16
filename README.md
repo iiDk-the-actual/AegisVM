@@ -12,6 +12,8 @@
 
 ---
 
+# AegisVM
+
 AegisVM is a complete, sandboxed Luau interpreter written entirely in Luau. It tokenises, parses, and evaluates Luau source code at runtime - no `loadstring`, no `getfenv`, no bytecode injection, no external executors. Everything is manual: a hand-written lexer, a recursive-descent parser with Pratt expression parsing, and an AST-walking runtime.
 
 It runs inside Roblox Studio as a set of ModuleScripts and can be used to execute untrusted or dynamically generated Luau code safely within any game.

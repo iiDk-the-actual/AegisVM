@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Security
+
+Before committing or pushing anything, run the `security-vulnerability-scanner` agent to check for secrets, API keys, tokens, or credentials in staged files.
+
+API keys and secrets must NEVER be pushed to GitHub. Files containing them must always be listed in `.gitignore` before they are ever staged. The following are already covered:
+
+- `.claude/settings.local.json` (Claude Code local settings, contains personal tokens)
+- `*.local.json`
+
+If you discover a secret was already pushed, immediately: rewrite history to remove the commit (`git reset`, then force push), and tell the user to revoke the exposed key at the provider.
+
 ## Permissions
 
 Claude Code has permission to commit, push, create branches, open pull requests, and create GitHub issues in this repository autonomously without asking for confirmation first.

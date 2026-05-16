@@ -6,3 +6,7 @@
 /*.rbxl.lock
 
 sourcemap.json
+
+# Claude Code local settings - contains personal API keys, never commit
+.claude/settings.local.json
+*.local.json
