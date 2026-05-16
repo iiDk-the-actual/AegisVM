@@ -13,17 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Aftman
-        run: |
-          curl -L --proto '=https' --tlsv1.2 -sSf \
-            "https://github.com/LPGhatguy/aftman/releases/download/v0.3.0/aftman-0.3.0-linux-x86_64.zip" \
-            -o aftman.zip
-          unzip -q aftman.zip
-          ./aftman self-install
-          echo "$HOME/.aftman/bin" >> "$GITHUB_PATH"
-
-      - name: Install tools (Rojo)
-        run: aftman install
+      - name: Install Aftman and tools
+        uses: ok-nick/setup-aftman@v0
 
       - name: Build model
         run: |
@@ -32,7 +23,7 @@ jobs:
           echo "ASSET_NAME=aegis-${SHORT_SHA}.rbxm" >> "$GITHUB_ENV"
 
       - name: Upload to release
-        run: gh release upload "${{ github.event.release.tag_name }}" "${{ env.ASSET_NAME }}"
+        run: gh release upload "${{ github.event.release.tag_name }}" "$ASSET_NAME"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -40,8 +31,7 @@ jobs:
         env:
           ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
         run: |
-          # Fetch CSRF token - Roblox returns it in the response headers on a
-          # rejected POST. We intentionally ignore the 403 body.
+          # Roblox returns the CSRF token in headers on a rejected POST
           CSRF_TOKEN=$(curl -s -o /dev/null -D - \
             -X POST "https://auth.roblox.com/v2/logout" \
             -H "Cookie: .ROBLOSECURITY=${ROBLOSECURITY}" \
@@ -52,14 +42,13 @@ jobs:
             exit 1
           fi
 
-          # Upload new version of the model to Roblox
           HTTP_STATUS=$(curl -s -o response.txt -w "%{http_code}" \
             -X POST \
-            "https://data.roblox.com/ide/publish/uploadnewversion?assetid=115970020351857&type=Model&name=Aegis&groupId=34832828" \
+            "https://data.roblox.com/ide/publish/uploadnewversion?assetid=115970020351857" \
             -H "Cookie: .ROBLOSECURITY=${ROBLOSECURITY}" \
             -H "X-CSRF-TOKEN: ${CSRF_TOKEN}" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @"${{ env.ASSET_NAME }}")
+            --data-binary "@${ASSET_NAME}")
 
           echo "Roblox upload HTTP status: ${HTTP_STATUS}"
           cat response.txt
