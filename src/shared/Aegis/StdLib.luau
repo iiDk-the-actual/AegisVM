@@ -31,7 +31,7 @@ local Error         = require(script.Parent.Error)
 local Lexer         = require(script.Parent.Lexer)
 local Parser        = require(script.Parent.Parser)
 local Scope         = require(script.Parent.Scope)
-local InsertService = require(script.Parent.WebRbxmParser)
+local InsertService = require(script.Parent.Libraries.WebRbxmParser)
 
 local StdLib = {}
 

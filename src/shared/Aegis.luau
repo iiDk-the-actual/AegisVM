@@ -124,12 +124,13 @@
     ══════════════════════════════════════════════════════════════════
 ]]
 
-local Lexer   = require(script.Lexer)
-local Parser  = require(script.Parser)
-local Runtime = require(script.Runtime)
-local Scope   = require(script.Scope)
-local StdLib  = require(script.StdLib)
-local Error   = require(script.Error)
+local Lexer      = require(script.Lexer)
+local Parser     = require(script.Parser)
+local Runtime    = require(script.Runtime)
+local Scope      = require(script.Scope)
+local StdLib     = require(script.StdLib)
+local Error      = require(script.Error)
+local Libraries  = require(script.Libraries)
 
 -- ─── Sandbox object ──────────────────────────────────────────────────
 
@@ -260,12 +261,13 @@ function Aegis.execAST(sandbox, ast)
 end
 
 -- Expose sub-module references for advanced use.
-Aegis.Lexer   = Lexer
-Aegis.Parser  = Parser
-Aegis.Runtime = Runtime
-Aegis.Scope   = Scope
-Aegis.StdLib  = StdLib
-Aegis.Error   = Error
+Aegis.Lexer      = Lexer
+Aegis.Parser     = Parser
+Aegis.Runtime    = Runtime
+Aegis.Scope      = Scope
+Aegis.StdLib     = StdLib
+Aegis.Error      = Error
+Aegis.Libraries  = Libraries
 
 -- Expose the Sandbox constructor directly.
 Aegis.Sandbox = Sandbox
