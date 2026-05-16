@@ -130,8 +130,8 @@ Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 
 ---
 
-## `src/shared/Aegis/InsertService.luau`
-User-imported Roblox ModuleScript. Used internally by the `game:GetObjects` proxy in StdLib to call `InsertService:LoadAsset()`.
+## `src/shared/Aegis/WebRbxmParser.luau`
+Fetches and deserializes JSON-encoded rbxm object trees from the AegisVM convert endpoint. Used internally by the `game:GetObjects` proxy in StdLib. Scripts found in the tree are wrapped in sandboxed AegisVM runners (source stored as an attribute, real source is a template that requires a cloned Aegis module).
 
 ---
 

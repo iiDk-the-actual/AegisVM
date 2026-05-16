@@ -13,7 +13,7 @@
         "Runtime": { "$path": "src/shared/Aegis/Runtime.luau" },
         "Scope":   { "$path": "src/shared/Aegis/Scope.luau" },
         "StdLib":  { "$path": "src/shared/Aegis/StdLib.luau" },
-        "InsertService": { "$path": "src/shared/Aegis/InsertService.luau" }
+        "WebRbxmParser": { "$path": "src/shared/Aegis/WebRbxmParser.luau" }
       }
     },
 

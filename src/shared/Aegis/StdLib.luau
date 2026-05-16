@@ -29,7 +29,7 @@ local Error         = require(script.Parent.Error)
 local Lexer         = require(script.Parent.Lexer)
 local Parser        = require(script.Parent.Parser)
 local Scope         = require(script.Parent.Scope)
-local InsertService = require(script.Parent.InsertService)
+local InsertService = require(script.Parent.WebRbxmParser)
 
 local StdLib = {}
 
@@ -458,7 +458,7 @@ local function buildRoblox(scope)
                     return hs:GetAsync(url, noCache)
                 end
             elseif key == "GetObjects" then
-                -- game:GetObjects(url)  ->  custom InsertService module
+                -- game:GetObjects(url)  ->  WebRbxmParser module
                 return function(_, url)
                     return InsertService:GetObjects(url)
                 end

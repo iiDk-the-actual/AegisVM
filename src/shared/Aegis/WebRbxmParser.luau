@@ -1,25 +1,62 @@
+--[[
+    WebRbxmParser.luau - JSON-encoded rbxm object tree deserializer
+
+    Fetches a JSON-encoded rbxm object tree from the AegisVM convert
+    endpoint and reconstructs Roblox Instances from it.  Scripts found
+    in the tree are wrapped in a sandboxed AegisVM runner: the original
+    source is stored as a "Source" attribute and the real script source
+    is a small template that requires a cloned Aegis module parented to
+    the script and calls Aegis.run on the stored source.
+
+    Public API (via module table):
+
+        module:GetObjects(url)     -- fetch + decode, returns { Instance, ... }
+        module:LoadAsset(id)       -- sugar: GetObjects("rbxassetid://"..id)
+        module:LoadAssetAsync(id)  -- alias for LoadAsset (synchronous)
+
+]]--
+
 local module = {}
 
 local HttpService = game:GetService("HttpService")
 local InsertService = game:GetService("InsertService")
-local NewScript = require(script.NewScript)
 
---[[ 
+-- Template source run by Script / LocalScript / Script-with-RunContext sandboxes.
+local SCRIPT_TEMPLATE = [[local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
+require(script:FindFirstChild("_aegisModule")).run(source)]]
 
-TODO: Rename this to WebRbxmParser
-TODO: Add description to the top much like the other files
+-- Template source run by ModuleScript sandboxes (forwards the return value).
+local MODULE_TEMPLATE = [[local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
+return require(script:FindFirstChild("_aegisModule")).run(source)]]
 
-TODO: Replace NewScript module with 4 scripts that call Aegis' compile function.
+local function makeAegisScript(opts)
+    local obj
 
-Example (script, localscript, script w/ clientruncontext):
-local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
-script:FindFirstChild("_aegisModule").run(source)
+    if opts.type == "ModuleScript" then
+        obj = Instance.new("ModuleScript")
+        obj.Source = MODULE_TEMPLATE
+    elseif opts.type == "LocalScript" then
+        obj = Instance.new("LocalScript")
+        obj.Source = SCRIPT_TEMPLATE
+        obj.Enabled = false
+    else
+        -- Script (default RunContext) or Script with explicit RunContext.
+        obj = Instance.new("Script")
+        obj.Source = SCRIPT_TEMPLATE
+        obj.Enabled = false
+    end
 
-Example (modulescript):
-local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
-return script:FindFirstChild("_aegisModule").run(source)
+    obj:SetAttribute("Source", opts.source or "")
 
-]]--
+    -- Clone the entire Aegis module tree so each sandboxed script has its
+    -- own self-contained interpreter with no shared state.
+    local aegisClone = script.Parent:Clone()
+    aegisClone.Name = "_aegisModule"
+    aegisClone.Parent = obj
+
+    obj.Parent = opts.parent
+    return obj
+end
 
 local function decodeKey(class, key)
 	if key == "Color3" then
@@ -78,11 +115,11 @@ local function decodeValue(key, value)
 	if value.Name and value.Number and value.Color then -- brickcolor
 		return BrickColor.new(value.Name)
 	end
-	
+
 	if type(value) == "number" and key.Name == "BrickColor" then -- fallback/xml
 		return BrickColor.new(value)
 	end
-	
+
 	-- Rect2D: { Min = { X, Y }, Max = { X, Y } }  (e.g. SliceCenter)
 	if value.Min and value.Max
 		and type(value.Min) == "table" and type(value.Max) == "table"
@@ -239,7 +276,7 @@ end
 -- First pass
 local function recursiveDecode(objectData, parent, ctx)
 	local object
-	
+
 	pcall(function() -- dont question it im tired
 		local s,f = pcall(function()
 			if objectData.ClassName == "MeshPart" then
@@ -248,12 +285,10 @@ local function recursiveDecode(objectData, parent, ctx)
 				or objectData.ClassName == "LocalScript"
 				or objectData.ClassName == "ModuleScript"
 			then
-				object = NewScript({
-					source     = objectData.Source or "",
-					parent     = parent,
-					type       = objectData.ClassName,
-					enabled    = false,
-					runcontext = objectData.RunContext or nil,
+				object = makeAegisScript({
+					source = objectData.Source or "",
+					parent = parent,
+					type   = objectData.ClassName,
 				})
 				if objectData.Enabled then
 					object:SetAttribute("scriptIsEnabled", objectData.Enabled)
@@ -268,7 +303,7 @@ local function recursiveDecode(objectData, parent, ctx)
 				object = Instance.new(objectData.ClassName, parent or nil)
 			end
 		end)
-		
+
 		if not s or object == nil then
 			object = Instance.new("Tween", parent or nil)
 		end
@@ -316,11 +351,11 @@ local function recursiveDecode(objectData, parent, ctx)
 			end
 		end
 	end)
-	
+
 	return object
 end
 
--- -- Second pass: resolve deferred Reference properties -----------------------
+-- Second pass: resolve deferred Reference properties
 local function applyPendingRefs(ctx)
 	for _, entry in ipairs(ctx.pendingRefs) do
 		local target = ctx.instanceMap[entry.targetId]
@@ -352,7 +387,7 @@ function module:GetObjects(url)
 	local objects = {}
 	local ctx = {
 		scripts     = {},
-		instanceMap = {},   -- _id (uuid string) > Roblox Instance
+		instanceMap = {},   -- _id (uuid string) -> Roblox Instance
 		pendingRefs = {},   -- deferred { instance, key, targetId } entries
 	}
 
