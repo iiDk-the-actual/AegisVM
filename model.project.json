@@ -3,15 +3,36 @@
   "tree": {
     "$className": "Model",
 
-    "Aegis": {
-      "$path": "src/shared/Aegis.luau",
-      "Error":         { "$path": "src/shared/Aegis/Error.luau" },
-      "Lexer":         { "$path": "src/shared/Aegis/Lexer.luau" },
-      "Parser":        { "$path": "src/shared/Aegis/Parser.luau" },
-      "Runtime":       { "$path": "src/shared/Aegis/Runtime.luau" },
-      "Scope":         { "$path": "src/shared/Aegis/Scope.luau" },
-      "StdLib":        { "$path": "src/shared/Aegis/StdLib.luau" },
-      "WebRbxmParser": { "$path": "src/shared/Aegis/WebRbxmParser.luau" }
+    "MainModule": {
+      "$path": "src/shared/MainModule.luau",
+
+      "Aegis": {
+        "$path": "src/shared/Aegis.luau",
+        "Constants": { "$path": "src/shared/Aegis/Constants.luau" },
+        "Error":     { "$path": "src/shared/Aegis/Error.luau" },
+        "Lexer":     { "$path": "src/shared/Aegis/Lexer.luau" },
+        "Parser":    { "$path": "src/shared/Aegis/Parser.luau" },
+        "Runtime":   { "$path": "src/shared/Aegis/Runtime.luau" },
+        "Scope":     { "$path": "src/shared/Aegis/Scope.luau" },
+        "StdLib":    { "$path": "src/shared/Aegis/StdLib.luau" },
+        "Libraries": {
+          "$path": "src/shared/Aegis/Libraries.luau",
+          "WebRbxmParser": {
+            "$path": "src/shared/Aegis/Libraries/WebRbxmParser.luau",
+            "ScriptTemplate": {
+              "$path": "src/shared/Aegis/Libraries/WebRbxmParser/ScriptTemplate.server.luau",
+              "$properties": { "Enabled": { "Bool": false } }
+            },
+            "LocalScriptTemplate": {
+              "$path": "src/shared/Aegis/Libraries/WebRbxmParser/LocalScriptTemplate.client.luau",
+              "$properties": { "Enabled": { "Bool": false } }
+            },
+            "ModuleScriptTemplate": {
+              "$path": "src/shared/Aegis/Libraries/WebRbxmParser/ModuleScriptTemplate.luau"
+            }
+          }
+        }
+      }
     },
 
     "ThumbnailCamera": { "$path": "src/ThumbnailCamera.rbxmx" }

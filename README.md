@@ -46,6 +46,14 @@ Source text flows through three stages:
 
 ## Installation
 
+### Via Roblox asset ID
+
+```lua
+local Aegis = require(115970020351857)
+```
+
+The published asset contains a `MainModule` wrapper that returns the Aegis API directly.
+
 ### Via Rojo
 
 Clone the repository and sync into Studio with [Rojo](https://rojo.space):
