@@ -57,7 +57,7 @@ This codebase targets Roblox's Luau runtime, which differs from standard Lua 5.3
 
 ## Architecture
 
-AegisVM is a Luau-in-Luau interpreter. Source text > tokens > AST > execution. All six modules live as children of the `Compiler` ModuleScript.
+AegisVM is a Luau-in-Luau interpreter. Source text > tokens > AST > execution. All six modules live as children of the `Aegis` ModuleScript.
 
 ### Data flow
 
@@ -67,12 +67,12 @@ source text
   Parser.parse()         -> AST block   { kind="Block", stmts={...} }
   Runtime:execBlock()    -> side effects / return signal
   RuntimeModule.execBlock() (public wrapper, catches return signal)
-  Compiler.execAST()     -> unpacks MultiReturn -> true, v1, v2, ...
+  Aegis.execAST()        -> unpacks MultiReturn -> true, v1, v2, ...
 ```
 
 ### Multiple return values
 
-Packed as `{ __multi=true, n=count, [1]=v1, [2]=v2, ... }`. `eval()` always returns one value; `evalMulti()` returns the table. In expression lists only the **last** expression expands — all prior ones are truncated to one value (`flattenExprList`). `Compiler.run()` / `Compiler.runIn()` unpack this so callers receive `true, v1, v2, ...`.
+Packed as `{ __multi=true, n=count, [1]=v1, [2]=v2, ... }`. `eval()` always returns one value; `evalMulti()` returns the table. In expression lists only the **last** expression expands — all prior ones are truncated to one value (`flattenExprList`). `Aegis.run()` / `Aegis.runIn()` unpack this so callers receive `true, v1, v2, ...`.
 
 ### Control-flow signals
 
@@ -105,12 +105,12 @@ Implemented in StdLib, not forbidden - it re-enters the interpreter pipeline (Le
 ## Public API
 
 ```lua
-Compiler.run(source, sourceName?, options?)           -- fresh sandbox, returns true, ...
-Compiler.runIn(sandbox, source, sourceName?)          -- existing sandbox, returns true, ...
-Compiler.compile(source, sourceName?)                 -- tokenise+parse only, returns ast or nil,err
-Compiler.execAST(sandbox, ast)                        -- execute pre-compiled AST
-Compiler.newSandbox({ maxCallDepth, noStdLib, globals })
-sandbox.scope:defineGlobal(name, value)               -- inject host values
+Aegis.run(source, sourceName?, options?)           -- fresh sandbox, returns true, ...
+Aegis.runIn(sandbox, source, sourceName?)          -- existing sandbox, returns true, ...
+Aegis.compile(source, sourceName?)                 -- tokenise+parse only, returns ast or nil,err
+Aegis.execAST(sandbox, ast)                        -- execute pre-compiled AST
+Aegis.newSandbox({ maxCallDepth, noStdLib, globals })
+sandbox.scope:defineGlobal(name, value)            -- inject host values
 ```
 
 ## Sandbox restrictions

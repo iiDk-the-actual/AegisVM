@@ -23,7 +23,7 @@ It runs inside Roblox Studio as a set of ModuleScripts and can be used to execut
 ## Architecture
 
 ```
-Compiler.luau       (public API - entry point)
+Aegis.luau          (public API - entry point)
 ├── Lexer.luau      tokeniser, produces a flat token list
 ├── Parser.luau     recursive-descent + Pratt parser, produces an AST
 ├── Runtime.luau    AST evaluator / interpreter
@@ -52,21 +52,21 @@ cd AegisVM
 rojo serve
 ```
 
-The `default.project.json` places the `Compiler` ModuleScript in `ServerScriptService`. Move it to `ReplicatedStorage` or anywhere else by editing that file before syncing.
+The `default.project.json` places the `Aegis` ModuleScript in `ServerScriptService`. Move it to `ReplicatedStorage` or anywhere else by editing that file before syncing.
 
 ### Manual
 
-Copy `src/shared/Compiler.luau` and the `src/shared/Compiler/` folder into Studio as a ModuleScript named `Compiler` with its children placed inside it.
+Copy `src/shared/Aegis.luau` and the `src/shared/Aegis/` folder into Studio as a ModuleScript named `Aegis` with its children placed inside it.
 
 ---
 
 ## Quick Start
 
 ```lua
-local Compiler = require(ReplicatedStorage.Compiler)
+local Aegis = require(ReplicatedStorage.Aegis)
 
 -- Run code in a fresh, isolated sandbox
-local ok, err = Compiler.run([[
+local ok, err = Aegis.run([[
     local function factorial(n)
         if n <= 1 then return 1 end
         return n * factorial(n - 1)
@@ -83,36 +83,36 @@ end
 
 ## API Reference
 
-### `Compiler.run(source, sourceName?, options?)`
+### `Aegis.run(source, sourceName?, options?)`
 
 Compiles and runs `source` in a fresh sandbox. Returns `true, ...returnValues` on success or `false, errorMessage` on failure.
 
 ```lua
-local ok, a, b = Compiler.run([[
+local ok, a, b = Aegis.run([[
     return 1 + 1, "hello"
 ]])
 -- ok = true, a = 2, b = "hello"
 ```
 
-### `Compiler.newSandbox(options?)`
+### `Aegis.newSandbox(options?)`
 
 Creates a reusable sandbox object. Subsequent `runIn` calls share the same global environment.
 
 ```lua
-local sandbox = Compiler.newSandbox()
+local sandbox = Aegis.newSandbox()
 
-Compiler.runIn(sandbox, "x = 100")
-Compiler.runIn(sandbox, "print(x)")   -- 100
+Aegis.runIn(sandbox, "x = 100")
+Aegis.runIn(sandbox, "print(x)")   -- 100
 ```
 
-### `Compiler.runIn(sandbox, source, sourceName?)`
+### `Aegis.runIn(sandbox, source, sourceName?)`
 
 Runs source code inside an existing sandbox. Variables persist between calls.
 
 ```lua
-local sandbox = Compiler.newSandbox()
+local sandbox = Aegis.newSandbox()
 
-Compiler.runIn(sandbox, [[
+Aegis.runIn(sandbox, [[
     local total = 0
     for i = 1, 10 do
         total += i
@@ -120,32 +120,32 @@ Compiler.runIn(sandbox, [[
     result = total
 ]])
 
-Compiler.runIn(sandbox, "print(result)")   -- 55
+Aegis.runIn(sandbox, "print(result)")   -- 55
 ```
 
-### `Compiler.compile(source, sourceName?)`
+### `Aegis.compile(source, sourceName?)`
 
 Tokenises and parses only; returns `(ast, nil)` on success or `(nil, errorMessage)` on failure. Useful for syntax checking without execution.
 
 ```lua
-local ast, err = Compiler.compile("local x = ??")
+local ast, err = Aegis.compile("local x = ??")
 if not ast then
     warn(err)   -- parse error with line/column
 end
 ```
 
-### `Compiler.execAST(sandbox, ast)`
+### `Aegis.execAST(sandbox, ast)`
 
-Executes a pre-compiled AST in a sandbox. Combine with `Compiler.compile` when you want to compile once and run many times.
+Executes a pre-compiled AST in a sandbox. Combine with `Aegis.compile` when you want to compile once and run many times.
 
 ```lua
-local ast = assert(Compiler.compile("return math.pi * 2"))
+local ast = assert(Aegis.compile("return math.pi * 2"))
 
-local sandbox1 = Compiler.newSandbox()
-local sandbox2 = Compiler.newSandbox()
+local sandbox1 = Aegis.newSandbox()
+local sandbox2 = Aegis.newSandbox()
 
-Compiler.execAST(sandbox1, ast)
-Compiler.execAST(sandbox2, ast)
+Aegis.execAST(sandbox1, ast)
+Aegis.execAST(sandbox2, ast)
 ```
 
 ### `sandbox.scope:defineGlobal(name, value)`
@@ -153,14 +153,14 @@ Compiler.execAST(sandbox2, ast)
 Injects a host-side value into the sandbox global scope.
 
 ```lua
-local sandbox = Compiler.newSandbox()
+local sandbox = Aegis.newSandbox()
 sandbox.scope:defineGlobal("MyAPI", {
     greet = function(name)
         return "Hello, " .. name
     end,
 })
 
-Compiler.runIn(sandbox, [[
+Aegis.runIn(sandbox, [[
     print(MyAPI.greet("world"))   -- Hello, world
 ]])
 ```
@@ -170,7 +170,7 @@ Compiler.runIn(sandbox, [[
 ## Sandbox Options
 
 ```lua
-local sandbox = Compiler.newSandbox({
+local sandbox = Aegis.newSandbox({
     maxCallDepth = 100,   -- default 200; limits recursion depth
     noStdLib     = false, -- set true to skip standard library population
     globals      = {      -- extra globals injected at construction time
@@ -230,7 +230,7 @@ AegisVM supports the full Luau grammar:
 ### Closures and upvalues
 
 ```lua
-Compiler.run([[
+Aegis.run([[
     local function counter(start)
         local n = start
         return function()
@@ -249,7 +249,7 @@ Compiler.run([[
 ### Metatables
 
 ```lua
-Compiler.run([[
+Aegis.run([[
     local Vector = {}
     Vector.__index = Vector
 
@@ -275,7 +275,7 @@ Compiler.run([[
 ### Shared sandbox with injected API
 
 ```lua
-local sandbox = Compiler.newSandbox()
+local sandbox = Aegis.newSandbox()
 
 sandbox.scope:defineGlobal("DataStore", {
     save = function(key, value)
@@ -283,7 +283,7 @@ sandbox.scope:defineGlobal("DataStore", {
     end,
 })
 
-Compiler.runIn(sandbox, [[
+Aegis.runIn(sandbox, [[
     DataStore.save("coins", 500)
     DataStore.save("level", 12)
 ]])
@@ -292,7 +292,7 @@ Compiler.runIn(sandbox, [[
 ### Using `loadstring`
 
 ```lua
-Compiler.run([[
+Aegis.run([[
     local code = "return 2 ^ 10"
     local fn = loadstring(code)
     print(fn())   -- 1024
@@ -302,7 +302,7 @@ Compiler.run([[
 ### Checking return values
 
 ```lua
-local ok, sum, product = Compiler.run([[
+local ok, sum, product = Aegis.run([[
     local a, b = 6, 7
     return a + b, a * b
 ]])

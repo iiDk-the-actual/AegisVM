@@ -1,5 +1,5 @@
 --[[
-    Compiler.luau - Luau-in-Luau execution engine (main entry point)
+    Aegis.luau - AegisVM Luau-in-Luau execution engine (main entry point)
 
     ══════════════════════════════════════════════════════════════════
     A complete, standalone Luau source-code interpreter written
@@ -20,7 +20,7 @@
     ════════════
 
     ┌──────────────────────────────────────────┐
-    │  Compiler.luau  (this file - public API) │
+    │  Aegis.luau  (this file - public API)   │
     │                                          │
     │  ┌──────────┐  tokens   ┌────────────┐   │
     │  │  Lexer   │──────────▶│   Parser   │   │
@@ -39,34 +39,34 @@
     └──────────────────────────────────────────┘
 
     Modules (children of this ModuleScript in Roblox):
-        Compiler.Lexer    - Tokeniser
-        Compiler.Parser   - Recursive-descent + Pratt expression parser
-        Compiler.Runtime  - AST evaluator / interpreter
-        Compiler.Scope    - Lexical scope chain
-        Compiler.StdLib   - Sandboxed standard library
-        Compiler.Error    - Error types and control-flow signals
+        Aegis.Lexer    - Tokeniser
+        Aegis.Parser   - Recursive-descent + Pratt expression parser
+        Aegis.Runtime  - AST evaluator / interpreter
+        Aegis.Scope    - Lexical scope chain
+        Aegis.StdLib   - Sandboxed standard library
+        Aegis.Error    - Error types and control-flow signals
 
     ══════════════════════════════════════════════════════════════════
     Quick-start
     ═══════════
 
-        local Compiler = require(ReplicatedStorage.Compiler)
+        local Aegis = require(ReplicatedStorage.Aegis)
 
         -- Run code in a fresh sandbox
-        local ok, err = Compiler.run([[
+        local ok, err = Aegis.run([[
             local x = 10
             local function fact(n)
                 if n <= 1 then return 1 end
                 return n * fact(n - 1)
             end
-            print(fact(x))   -- → 3628800
+            print(fact(x))   -- -> 3628800
         \]\])
         if not ok then warn(err) end
 
         -- Shared sandbox across multiple calls
-        local sandbox = Compiler.newSandbox()
-        Compiler.runIn(sandbox, "x = 42")
-        Compiler.runIn(sandbox, "print(x)")   -- → 42
+        local sandbox = Aegis.newSandbox()
+        Aegis.runIn(sandbox, "x = 42")
+        Aegis.runIn(sandbox, "print(x)")   -- -> 42
 
         -- Inject host values into the sandbox
         sandbox.scope:defineGlobal("myService", myServiceTable)
@@ -216,20 +216,20 @@ end
 
 -- ─── Public API ───────────────────────────────────────────────────────
 
-local Compiler = {}
+local Aegis = {}
 
 -- Create a new shared sandbox environment.
 -- options:
 --   maxCallDepth : number  (default 200)
 --   noStdLib     : bool    (skip StdLib.populate)
 --   globals      : table   (extra globals to inject)
-function Compiler.newSandbox(options)
+function Aegis.newSandbox(options)
     return Sandbox.new(options)
 end
 
 -- Compile + run source code in a FRESH sandbox each time.
 -- Returns (true, returnValues) or (false, errorMessage).
-function Compiler.run(source, sourceName, options)
+function Aegis.run(source, sourceName, options)
     local ast, compileErr = compile(source, sourceName)
     if not ast then
         return false, compileErr
@@ -241,7 +241,7 @@ end
 
 -- Compile + run source code in an EXISTING shared sandbox.
 -- Returns (true, returnValues) or (false, errorMessage).
-function Compiler.runIn(sandbox, source, sourceName)
+function Aegis.runIn(sandbox, source, sourceName)
     local ast, compileErr = compile(source, sourceName)
     if not ast then
         return false, compileErr
@@ -251,24 +251,24 @@ end
 
 -- Only compile (tokenise + parse), returning the AST or nil+error.
 -- Useful for pre-compilation or syntax checking.
-function Compiler.compile(source, sourceName)
+function Aegis.compile(source, sourceName)
     return compile(source, sourceName)
 end
 
 -- Execute a pre-compiled AST in an existing sandbox.
-function Compiler.execAST(sandbox, ast)
+function Aegis.execAST(sandbox, ast)
     return execAST(sandbox, ast)
 end
 
 -- Expose sub-module references for advanced use.
-Compiler.Lexer   = Lexer
-Compiler.Parser  = Parser
-Compiler.Runtime = Runtime
-Compiler.Scope   = Scope
-Compiler.StdLib  = StdLib
-Compiler.Error   = Error
+Aegis.Lexer   = Lexer
+Aegis.Parser  = Parser
+Aegis.Runtime = Runtime
+Aegis.Scope   = Scope
+Aegis.StdLib  = StdLib
+Aegis.Error   = Error
 
 -- Expose the Sandbox constructor directly.
-Compiler.Sandbox = Sandbox
+Aegis.Sandbox = Sandbox
 
-return Compiler
+return Aegis
