@@ -5,6 +5,7 @@
 
 local Libraries = {}
 
+Libraries.NewScript      = require(script.NewScript)
 Libraries.WebRbxmParser = require(script.WebRbxmParser)
 
 return Libraries

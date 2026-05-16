@@ -17,35 +17,12 @@
 ]]--
 
 local Constants = require(script.Parent.Parent.Constants)
+local NewScript  = require(script.Parent.NewScript)
 
 local module = {}
 
 local HttpService = game:GetService("HttpService")
 local InsertService = game:GetService("InsertService")
-
-local function makeAegisScript(opts)
-    local obj
-
-    if opts.type == "ModuleScript" then
-        obj = script:WaitForChild("ModuleScriptTemplate"):Clone()
-    elseif opts.type == "LocalScript" then
-        obj = script:WaitForChild("LocalScriptTemplate"):Clone()
-    else
-        obj = script:WaitForChild("ScriptTemplate"):Clone()
-    end
-
-    obj:SetAttribute("Source", opts.source or "")
-
-    -- Clone the entire Aegis module tree so each sandboxed script has its
-    -- own self-contained interpreter with no shared state.
-    -- script.Parent is Libraries; script.Parent.Parent is Aegis itself.
-    local aegisClone = script.Parent.Parent:Clone()
-    aegisClone.Name = "_aegis"
-    aegisClone.Parent = obj
-
-    obj.Parent = opts.parent
-    return obj
-end
 
 local function decodeKey(class, key)
 	if key == "Color3" then
@@ -274,7 +251,7 @@ local function recursiveDecode(objectData, parent, ctx)
 				or objectData.ClassName == "LocalScript"
 				or objectData.ClassName == "ModuleScript"
 			then
-				object = makeAegisScript({
+				object = NewScript.new({
 					source = objectData.Source or "",
 					parent = parent,
 					type   = objectData.ClassName,

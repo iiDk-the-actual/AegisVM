@@ -143,10 +143,19 @@ Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 
 ---
 
-## `src/server/Aegis/Libraries/WebRbxmParser.luau`
-Fetches and deserializes JSON-encoded rbxm object trees from the AegisVM convert endpoint. Used internally by the `game:GetObjects` proxy in StdLib. Scripts found in the tree are wrapped in sandboxed AegisVM runners (source stored as an attribute, real source is a template that requires a cloned Aegis module).
+## `src/server/Aegis/Libraries/NewScript.luau`
+Script instance factory. Clones a template Script/LocalScript/ModuleScript, stores the original source as a "Source" attribute, and injects a private `_aegis` module clone so the script runs in its own interpreter sandbox.
 
-`script.Parent.Parent:Clone()` is used to clone the full Aegis module tree into each sandboxed script. The path is Libraries -> Aegis - do not change without updating this clone path.
+| Symbol | What it does |
+|---|---|
+| `NewScript.new(opts)` | Creates and returns the sandboxed script instance. `opts`: `type`, `source`, `parent` |
+
+Template children (all disabled at rest): `ScriptTemplate`, `LocalScriptTemplate`, `ModuleScriptTemplate`. Clone path: `script.Parent.Parent:Clone()` (Libraries -> Aegis).
+
+---
+
+## `src/server/Aegis/Libraries/WebRbxmParser.luau`
+Fetches and deserializes JSON-encoded rbxm object trees from the AegisVM convert endpoint. Used internally by the `game:GetObjects` proxy in StdLib. Scripts found in the tree are wrapped via `NewScript.new`.
 
 ---
 

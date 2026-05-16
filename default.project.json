@@ -16,19 +16,22 @@
         "StdLib":  { "$path": "src/server/Aegis/StdLib.luau" },
         "Libraries": {
           "$path": "src/server/Aegis/Libraries.luau",
-          "WebRbxmParser": {
-            "$path": "src/server/Aegis/Libraries/WebRbxmParser.luau",
+          "NewScript": {
+            "$path": "src/server/Aegis/Libraries/NewScript.luau",
             "ScriptTemplate": {
-              "$path": "src/server/Aegis/Libraries/WebRbxmParser/ScriptTemplate.server.luau",
-              "$properties": { "Enabled": { "Bool": false } }
+              "$path": "src/server/Aegis/Libraries/NewScript/ScriptTemplate.server.luau",
+              "$properties": { "Disabled": { "Bool": true } }
             },
             "LocalScriptTemplate": {
-              "$path": "src/server/Aegis/Libraries/WebRbxmParser/LocalScriptTemplate.client.luau",
-              "$properties": { "Enabled": { "Bool": false } }
+              "$path": "src/server/Aegis/Libraries/NewScript/LocalScriptTemplate.client.luau",
+              "$properties": { "Disabled": { "Bool": true } }
             },
             "ModuleScriptTemplate": {
-              "$path": "src/server/Aegis/Libraries/WebRbxmParser/ModuleScriptTemplate.luau"
+              "$path": "src/server/Aegis/Libraries/NewScript/ModuleScriptTemplate.luau"
             }
+          },
+          "WebRbxmParser": {
+            "$path": "src/server/Aegis/Libraries/WebRbxmParser.luau"
           }
         }
       }
