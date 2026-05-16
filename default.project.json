@@ -1,0 +1,27 @@
+{
+  "name": "rojoproj",
+  "tree": {
+    "$className": "DataModel",
+
+    "ServerScriptService": {
+      "Compiler": 
+      {
+        "$path": "src/shared/Compiler.luau",
+        "Error":   { "$path": "src/shared/Compiler/Error.luau" },
+        "Lexer":   { "$path": "src/shared/Compiler/Lexer.luau" },
+        "Parser":  { "$path": "src/shared/Compiler/Parser.luau" },
+        "Runtime": { "$path": "src/shared/Compiler/Runtime.luau" },
+        "Scope":   { "$path": "src/shared/Compiler/Scope.luau" },
+        "StdLib":  { "$path": "src/shared/Compiler/StdLib.luau" }
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
