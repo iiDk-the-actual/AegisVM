@@ -327,3 +327,25 @@ Guest code runs entirely within the interpreter's scope chain. It cannot reach t
 ## License
 
 MIT
+
+---
+
+### AI Disclaimer
+
+This project has used Artificial Intelligence (Claude Sonnet 4.6) to assist with development, design decisions, and documentation drafting.
+
+AI assistance was used as a productivity and engineering aid for tasks such as:
+
+* drafting and refining documentation
+* suggesting structural improvements to interpreter components
+* generating example usage snippets
+* assisting with debugging logic and edge cases
+* helping formalize architecture explanations
+
+All generated or suggested content was reviewed, modified, and integrated manually. The final implementation remains the result of human engineering decisions, including control over the lexer, parser, runtime semantics, and sandboxing model.
+
+AI was not used as an autonomous system for producing unchecked code execution paths or for making security-critical decisions without review. Any behavior related to sandboxing, environment isolation, or execution safety was explicitly validated in the context of Luau and Roblox Studio constraints.
+
+This project does not rely on AI at runtime. The interpreter itself is fully deterministic and self-contained, with no external model calls, inference layers, or dynamic code generation from AI systems during execution.
+
+AI tools were used strictly during development time and are not part of the shipped runtime, dependencies, or execution pipeline.
