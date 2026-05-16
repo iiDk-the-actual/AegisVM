@@ -198,7 +198,7 @@ The sandbox provides a safe subset of the Luau standard library. All environment
 | `os`        | `time`, `clock`, `date`, `difftime`                                      |
 | Roblox      | `game`, `workspace`, `Enum`, `Instance`, `shared`, all value-type constructors (`Vector3`, `CFrame`, `Color3`, `UDim2`, etc.) |
 
-**Excluded:** `getfenv`, `setfenv`, `load`, `require`, `dofile`, `collectgarbage`, `debug.*`, `io.*`, direct service shortcuts (`Players`, `RunService`, etc. - use `game:GetService()` instead).
+**Excluded:** `getfenv`, `setfenv`, `load`, `dofile`, `collectgarbage`, `debug.*`, `io.*`, direct service shortcuts (`Players`, `RunService`, etc. - use `game:GetService()` instead).
 
 ---
 
@@ -318,7 +318,6 @@ AegisVM never calls:
 
 - `getfenv` / `setfenv`
 - `loadstring` / `load` at the host level
-- `debug.*` library functions
 - Roblox bytecode or internal APIs
 - Any external executor or unsafe sandbox escape
 
