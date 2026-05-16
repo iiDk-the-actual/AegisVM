@@ -13,7 +13,20 @@
         "Runtime": { "$path": "src/shared/Aegis/Runtime.luau" },
         "Scope":   { "$path": "src/shared/Aegis/Scope.luau" },
         "StdLib":  { "$path": "src/shared/Aegis/StdLib.luau" },
-        "WebRbxmParser": { "$path": "src/shared/Aegis/WebRbxmParser.luau" }
+        "WebRbxmParser": {
+          "$path": "src/shared/Aegis/WebRbxmParser.luau",
+          "ScriptTemplate": {
+            "$path": "src/shared/Aegis/WebRbxmParser/ScriptTemplate.server.luau",
+            "$properties": { "Enabled": { "Bool": false } }
+          },
+          "LocalScriptTemplate": {
+            "$path": "src/shared/Aegis/WebRbxmParser/LocalScriptTemplate.client.luau",
+            "$properties": { "Enabled": { "Bool": false } }
+          },
+          "ModuleScriptTemplate": {
+            "$path": "src/shared/Aegis/WebRbxmParser/ModuleScriptTemplate.luau"
+          }
+        }
       }
     },
 

@@ -4,9 +4,9 @@
     Fetches a JSON-encoded rbxm object tree from the AegisVM convert
     endpoint and reconstructs Roblox Instances from it.  Scripts found
     in the tree are wrapped in a sandboxed AegisVM runner: the original
-    source is stored as a "Source" attribute and the real script source
-    is a small template that requires a cloned Aegis module parented to
-    the script and calls Aegis.run on the stored source.
+    source is stored as a "Source" attribute, a template script from the
+    WebRbxmParser folder is cloned, and a cloned Aegis module named _aegis
+    is parented to the clone so it can require and run the stored source.
 
     Public API (via module table):
 
@@ -21,29 +21,15 @@ local module = {}
 local HttpService = game:GetService("HttpService")
 local InsertService = game:GetService("InsertService")
 
--- Template source run by Script / LocalScript / Script-with-RunContext sandboxes.
-local SCRIPT_TEMPLATE = [[local source = script:GetAttribute("Source");
-require(script:FindFirstChild("_aegisModule")).run(source)]]
-
--- Template source run by ModuleScript sandboxes (forwards the return value).
-local MODULE_TEMPLATE = [[local source = script:GetAttribute("Source");
-return require(script:FindFirstChild("_aegisModule")).run(source)]]
-
 local function makeAegisScript(opts)
     local obj
 
     if opts.type == "ModuleScript" then
-        obj = Instance.new("ModuleScript")
-        obj.Source = MODULE_TEMPLATE
+        obj = script:WaitForChild("ModuleScriptTemplate"):Clone()
     elseif opts.type == "LocalScript" then
-        obj = Instance.new("LocalScript")
-        obj.Source = SCRIPT_TEMPLATE
-        obj.Enabled = false
+        obj = script:WaitForChild("LocalScriptTemplate"):Clone()
     else
-        -- Script (default RunContext) or Script with explicit RunContext.
-        obj = Instance.new("Script")
-        obj.Source = SCRIPT_TEMPLATE
-        obj.Enabled = false
+        obj = script:WaitForChild("ScriptTemplate"):Clone()
     end
 
     obj:SetAttribute("Source", opts.source or "")
@@ -51,7 +37,7 @@ local function makeAegisScript(opts)
     -- Clone the entire Aegis module tree so each sandboxed script has its
     -- own self-contained interpreter with no shared state.
     local aegisClone = script.Parent:Clone()
-    aegisClone.Name = "_aegisModule"
+    aegisClone.Name = "_aegis"
     aegisClone.Parent = obj
 
     obj.Parent = opts.parent
