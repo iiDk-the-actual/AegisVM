@@ -49,7 +49,7 @@ jobs:
 
           HTTP_STATUS=$(curl -s -o response.txt -w "%{http_code}" \
             -X POST \
-            "https://data.roblox.com/ide/publish/uploadnewversion?assetid=115970020351857" \
+            "https://www.roblox.com/ide/publish/uploadnewversion?assetid=115970020351857" \
             -H "Cookie: .ROBLOSECURITY=${ROBLOSECURITY}" \
             -H "X-CSRF-TOKEN: ${CSRF_TOKEN}" \
             -H "Content-Type: application/octet-stream" \
