@@ -52,7 +52,7 @@ local TT = {
     EOF = "EOF",
 }
 
--- Keyword set (identifier text → token type string)
+-- Keyword set (identifier text -> token type string)
 local KEYWORDS = {
     ["and"]      = "and",
     ["break"]    = "break",
@@ -258,7 +258,7 @@ end
 
 -- ─── String literals ─────────────────────────────────────────────────
 
--- String escape sequences → resolved character
+-- String escape sequences -> resolved character
 local ESCAPE_MAP = {
     a  = "\a", b  = "\b", f  = "\f", n  = "\n",
     r  = "\r", t  = "\t", v  = "\v",

@@ -421,7 +421,7 @@ function Runtime:callFunctionMulti(fn, args, line)
         self.callDepth = self.callDepth - 1
 
         if ok then
-            return multiRet()   -- no explicit return → returns nothing
+            return multiRet()   -- no explicit return -> returns nothing
         end
 
         if Error.isReturn(sig) then
@@ -726,7 +726,7 @@ function Runtime:execStat(node, scope)
 
     -- ── Compound assignment  target op= value ─────────────────────
     elseif kind == "CompoundAssignment" then
-        -- Strip trailing = to get the base operator: += → +, ..= → ..
+        -- Strip trailing = to get the base operator: += -> +, ..= -> ..
         local op    = string.sub(node.op, 1, -2)
         local left  = self:eval(node.target, scope)
         local right = self:eval(node.value,  scope)

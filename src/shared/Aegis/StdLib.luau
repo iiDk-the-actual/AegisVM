@@ -452,7 +452,7 @@ local function buildRoblox(scope)
         __index = function(_, key)
             -- ── Intercepted methods ──────────────────────────────────────
             if key == "HttpGet" or key == "HttpGetAsync" then
-                -- game:HttpGet(url [, noCache])  →  HttpService:GetAsync(url [, noCache])
+                -- game:HttpGet(url [, noCache])  ->  HttpService:GetAsync(url [, noCache])
                 return function(_, url, noCache)
                     local hs = realGame:GetService("HttpService")
                     return hs:GetAsync(url, noCache)

@@ -22,11 +22,11 @@ local HttpService = game:GetService("HttpService")
 local InsertService = game:GetService("InsertService")
 
 -- Template source run by Script / LocalScript / Script-with-RunContext sandboxes.
-local SCRIPT_TEMPLATE = [[local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
+local SCRIPT_TEMPLATE = [[local source = script:GetAttribute("Source");
 require(script:FindFirstChild("_aegisModule")).run(source)]]
 
 -- Template source run by ModuleScript sandboxes (forwards the return value).
-local MODULE_TEMPLATE = [[local source = script:GetAttribute("Source");script:SetAttribute("Source", "")
+local MODULE_TEMPLATE = [[local source = script:GetAttribute("Source");
 return require(script:FindFirstChild("_aegisModule")).run(source)]]
 
 local function makeAegisScript(opts)

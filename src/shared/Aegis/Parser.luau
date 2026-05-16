@@ -51,7 +51,7 @@
     TypeCast           { expr, type }             -- x :: T  (runtime: noop)
 
     FunctionBody       { params, hasVarArg, retType, block }
-    ── Operator precedence (lowest → highest) ─────────────────────────
+    ── Operator precedence (lowest -> highest) ─────────────────────────
     1   or
     2   and
     3   < > <= >= == ~=

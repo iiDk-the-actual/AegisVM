@@ -75,7 +75,7 @@
     Interpreter flow
     ════════════════
 
-    1.  Source text  →  Lexer.tokenize()
+    1.  Source text  ->  Lexer.tokenize()
             The Lexer scans the raw UTF-8 source byte-by-byte.
             It emits a flat list of Token objects:
                 { type, value, line, col }
@@ -83,7 +83,7 @@
             handled.  Keywords are recognised as a post-processing step
             on identifiers.
 
-    2.  Token list  →  Parser.parse()
+    2.  Token list  ->  Parser.parse()
             A recursive-descent parser with a Pratt sub-parser for
             expressions.  Each grammar rule is a method on the Parser
             object.  It returns a Block AST node containing a list of
@@ -91,7 +91,7 @@
             as children.  Type annotations are parsed into placeholder
             nodes and discarded by the Runtime.
 
-    3.  AST  →  Runtime:execBlock()
+    3.  AST  ->  Runtime:execBlock()
             The Runtime walks the AST.  eval() handles expressions;
             execStat() handles statements.  All Lua/Luau control-flow
             (break, continue, return, goto) is propagated via Lua's
