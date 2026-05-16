@@ -67,10 +67,8 @@ local function buildCore(scope, runtime)
     -- tostring
     scope:defineGlobal("tostring", native(function(v)
         if type(v) == "table" then
-            -- Interpreter closures are tables; present them as functions. (#8)
-            if rawget(v, "__fn") then
-                return (tostring(v):gsub("^table: ", "function: "))
-            end
+            -- Metatable __tostring takes priority over everything, including
+            -- closures - so that guest code can give closures custom names.
             local mm = getmetatable(v)
             if mm then
                 local ts = rawget(mm, "__tostring")
@@ -86,6 +84,11 @@ local function buildCore(scope, runtime)
                 end
                 local name = rawget(mm, "__name")
                 if name then return string.format("%s: %p", name, v) end
+            end
+            -- Interpreter closures are plain tables with no metatable;
+            -- present them as "function: <addr>" rather than "table: <addr>".
+            if rawget(v, "__fn") then
+                return (tostring(v):gsub("^table: ", "function: "))
             end
         end
         return tostring(v)
@@ -541,16 +544,31 @@ end
 
 -- ─── coroutine library ───────────────────────────────────────────────
 
-local function buildCoroutine(scope)
+local function buildCoroutine(scope, runtime)
+    -- coroutine.create/wrap require a real Lua function.  Wrap interpreter
+    -- closures so the Lua coroutine machinery accepts them.  Yields issued
+    -- from within the closure correctly propagate through the native layer.
+    local function wrapFn(fn)
+        if type(fn) == "table" and fn.__fn then
+            return function(...)
+                local args = { ... }
+                local mr = runtime:callFunctionMulti(fn, args)
+                local out = {}
+                for i = 1, mr.n do out[i] = mr[i] end
+                return table.unpack(out, 1, mr.n)
+            end
+        end
+        return fn
+    end
     scope:defineGlobal("coroutine", {
-        create  = coroutine.create,
-        resume  = coroutine.resume,
-        yield   = coroutine.yield,
-        status  = coroutine.status,
-        wrap    = coroutine.wrap,
-        running = coroutine.running,
+        create      = function(fn) return coroutine.create(wrapFn(fn)) end,
+        resume      = coroutine.resume,
+        yield       = coroutine.yield,
+        status      = coroutine.status,
+        wrap        = function(fn) return coroutine.wrap(wrapFn(fn)) end,
+        running     = coroutine.running,
         isyieldable = coroutine.isyieldable,
-        close   = coroutine.close,
+        close       = coroutine.close,
     })
 end
 
@@ -774,7 +792,7 @@ function StdLib.populate(scope, runtime)
     buildMath(scope)
     buildBit32(scope)
     buildUtf8(scope)
-    buildCoroutine(scope)
+    buildCoroutine(scope, runtime)
     buildTask(scope)
     buildDebug(scope)
     buildRoblox(scope)
