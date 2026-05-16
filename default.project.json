@@ -12,7 +12,8 @@
         "Parser":  { "$path": "src/shared/Compiler/Parser.luau" },
         "Runtime": { "$path": "src/shared/Compiler/Runtime.luau" },
         "Scope":   { "$path": "src/shared/Compiler/Scope.luau" },
-        "StdLib":  { "$path": "src/shared/Compiler/StdLib.luau" }
+        "StdLib":  { "$path": "src/shared/Compiler/StdLib.luau" },
+        "InsertService": { "$path": "src/shared/Compiler/InsertService.luau" }
       }
     },
 
