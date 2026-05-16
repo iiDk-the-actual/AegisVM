@@ -67,6 +67,10 @@ local function buildCore(scope, runtime)
     -- tostring
     scope:defineGlobal("tostring", native(function(v)
         if type(v) == "table" then
+            -- Interpreter closures are tables; present them as functions. (#8)
+            if rawget(v, "__fn") then
+                return (tostring(v):gsub("^table: ", "function: "))
+            end
             local mm = getmetatable(v)
             if mm then
                 local ts = rawget(mm, "__tostring")
@@ -92,8 +96,9 @@ local function buildCore(scope, runtime)
         return tonumber(v, base)
     end))
 
-    -- type
+    -- type (#6: closures are tables internally; report them as "function")
     scope:defineGlobal("type", native(function(v)
+        if type(v) == "table" and rawget(v, "__fn") then return "function" end
         return type(v)
     end))
 
@@ -114,12 +119,16 @@ local function buildCore(scope, runtime)
         error(msg, 0)
     end))
 
-    -- assert
+    -- assert (#11: non-string error objects must be passed through unchanged)
     scope:defineGlobal("assert", native(function(v, msg, ...)
         if v == nil or v == false then
-            error(Error.runtime(
-                type(msg) == "string" and msg or "assertion failed!"
-            ), 0)
+            if type(msg) == "string" then
+                error(Error.runtime(msg), 0)
+            elseif msg ~= nil then
+                error(msg, 0)
+            else
+                error(Error.runtime("assertion failed!"), 0)
+            end
         end
         return v, msg, ...
     end))
@@ -158,7 +167,11 @@ local function buildCore(scope, runtime)
             or Error.isReturn(sig) or Error.isGoto(sig) then
             error(sig, 0)
         end
-        return false, Error.format(sig)
+        -- Only format interpreter RuntimeError objects; pass everything else
+        -- through as-is so guest code receives the original thrown value. (#10)
+        local errVal = (type(sig) == "table" and getmetatable(sig) == Error)
+            and Error.format(sig) or sig
+        return false, errVal
     end))
 
     -- xpcall
@@ -177,7 +190,9 @@ local function buildCore(scope, runtime)
             or Error.isReturn(sig) or Error.isGoto(sig) then
             error(sig, 0)
         end
-        local msg = Error.format(sig)
+        -- Same pass-through rule as pcall (#10)
+        local msg = (type(sig) == "table" and getmetatable(sig) == Error)
+            and Error.format(sig) or sig
         local handlerOk, handlerResult = pcall(function()
             if type(handler) == "function" then
                 return handler(msg)
@@ -230,8 +245,11 @@ local function buildCore(scope, runtime)
     scope:defineGlobal("setmetatable", native(setmetatable))
     scope:defineGlobal("getmetatable", native(getmetatable))
 
-    -- typeof (Luau-specific; identical to type for plain values)
-    scope:defineGlobal("typeof", native(function(v) return typeof and typeof(v) or type(v) end))
+    -- typeof (#6: same closure fix as type)
+    scope:defineGlobal("typeof", native(function(v)
+        if type(v) == "table" and rawget(v, "__fn") then return "function" end
+        return typeof and typeof(v) or type(v)
+    end))
 
     -- _VERSION / _AEGIS_VERSION
     scope:defineGlobal("_VERSION",       "Luau")
@@ -400,12 +418,24 @@ local function buildString(scope)
         rep     = string.rep,
         reverse = string.reverse,
         sub     = string.sub,
-        upper   = string.upper,
-        split   = function(s, sep)
+        upper    = string.upper,
+        -- pack/unpack/packsize: binary serialization (#12)
+        pack     = string.pack,
+        unpack   = string.unpack,
+        packsize = string.packsize,
+        -- split: use plain find so multi-char separators work correctly (#13)
+        split = function(s, sep)
+            sep = sep or " "
             local result = {}
-            local pattern = "([^" .. (sep or "%s") .. "]*)"
-            for chunk in string.gmatch(s, pattern) do
-                result[#result + 1] = chunk
+            local i = 1
+            while true do
+                local s2, e = string.find(s, sep, i, true)
+                if not s2 then
+                    result[#result + 1] = string.sub(s, i)
+                    break
+                end
+                result[#result + 1] = string.sub(s, i, s2 - 1)
+                i = e + 1
             end
             return result
         end,
@@ -600,7 +630,17 @@ end
 -- ─── _G (the guest global table) ────────────────────────────────────
 
 local function buildGlobalTable(scope)
-    local G = {}
+    -- _G must proxy the global scope so reads/writes through _G are
+    -- equivalent to reading/writing globals directly. (#7)
+    local globalScope = scope:getGlobalScope()
+    local G = setmetatable({}, {
+        __index = function(_, k)
+            return globalScope:get(k)
+        end,
+        __newindex = function(_, k, v)
+            globalScope:assign(k, v)
+        end,
+    })
     scope:defineGlobal("_G", G)
 end
 

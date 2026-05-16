@@ -1001,22 +1001,68 @@ function Runtime:assignNameExpr(nameExpr, value, scope, isMethod)
 end
 
 -- ─── Binary arithmetic on raw values (for compound assignment) ────────
+-- Mirrors evalBinary's metamethod dispatch so that compound assignment
+-- (+=, -=, ..=, etc.) correctly invokes __add, __sub, __concat, etc.
+-- on interpreter-defined metatables. (#9)
 
 function Runtime:evalBinaryValues(op, l, r, line)
-    if op == "+"  then return l + r
-    elseif op == "-"  then return l - r
-    elseif op == "*"  then return l * r
-    elseif op == "/"  then return l / r
-    elseif op == "//" then return l // r
-    elseif op == "%"  then return l % r
-    elseif op == "^"  then return l ^ r
-    elseif op == ".." then return tostring(l) .. tostring(r)
-    elseif op == "&"  then return bit32.band(math.floor(l), math.floor(r))
-    elseif op == "|"  then return bit32.bor (math.floor(l), math.floor(r))
-    elseif op == "~"  then return bit32.bxor(math.floor(l), math.floor(r))
-    elseif op == "<<" then return bit32.lshift(math.floor(l), math.floor(r))
-    elseif op == ">>" then return bit32.rshift(math.floor(l), math.floor(r))
+    local mmName = ARITH_MM[op]
+    if mmName then
+        if type(l) == "number" and type(r) == "number" then
+            if op == "+"  then return l + r
+            elseif op == "-"  then return l - r
+            elseif op == "*"  then return l * r
+            elseif op == "/"  then return l / r
+            elseif op == "//" then return l // r
+            elseif op == "%"  then return l % r
+            elseif op == "^"  then return l ^ r
+            elseif op == "&"  then return bit32.band(math.floor(l), math.floor(r))
+            elseif op == "|"  then return bit32.bor (math.floor(l), math.floor(r))
+            elseif op == "~"  then return bit32.bxor(math.floor(l), math.floor(r))
+            elseif op == "<<" then return bit32.lshift(math.floor(l), math.floor(r))
+            elseif op == ">>" then return bit32.rshift(math.floor(l), math.floor(r))
+            end
+        end
+        -- String coercion for arithmetic operators (not bitwise)
+        if mmName == "__add" or mmName == "__sub" or mmName == "__mul"
+            or mmName == "__div" or mmName == "__idiv" or mmName == "__mod"
+            or mmName == "__pow" then
+            local nl = type(l) == "string" and tonumber(l) or nil
+            local nr = type(r) == "string" and tonumber(r) or nil
+            if nl ~= nil and (type(r) == "number" or nr ~= nil) then
+                local ll, rr = nl, nr or r
+                if type(ll) == "number" and type(rr) == "number" then
+                    if op == "+"  then return ll + rr
+                    elseif op == "-"  then return ll - rr
+                    elseif op == "*"  then return ll * rr
+                    elseif op == "/"  then return ll / rr
+                    elseif op == "//" then return ll // rr
+                    elseif op == "%"  then return ll % rr
+                    elseif op == "^"  then return ll ^ rr
+                    end
+                end
+            end
+        end
+        local res, ok = callMeta(self, l, mmName, r)
+        if not ok then res, ok = callMeta(self, r, mmName, l) end
+        if ok then return singleOf(res) end
+        self:runtimeError(
+            string.format("attempt to perform arithmetic on a %s value", type(l)),
+            line
+        )
     end
+
+    if op == ".." then
+        if (type(l) == "string" or type(l) == "number") and
+           (type(r) == "string" or type(r) == "number") then
+            return tostring(l) .. tostring(r)
+        end
+        local res, ok = callMeta(self, l, "__concat", r)
+        if not ok then res, ok = callMeta(self, r, "__concat", l) end
+        if ok then return singleOf(res) end
+        self:runtimeError("attempt to concatenate a " .. type(l) .. " value", line)
+    end
+
     self:runtimeError("unknown compound operator: " .. op, line)
 end
 
