@@ -1,5 +1,3 @@
--- InsertService by crimsoncauldr0n
-
 local module = {}
 
 local HttpService = game:GetService("HttpService")
@@ -7,6 +5,9 @@ local InsertService = game:GetService("InsertService")
 local NewScript = require(script.NewScript)
 
 --[[ 
+
+TODO: Rename this to WebRbxmParser
+TODO: Add description to the top much like the other files
 
 TODO: Replace NewScript module with 4 scripts that call Aegis' compile function.
 

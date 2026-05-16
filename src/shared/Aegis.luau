@@ -20,7 +20,7 @@
     ════════════
 
     ┌──────────────────────────────────────────┐
-    │  Aegis.luau  (this file - public API)   │
+    │  Aegis.luau  (this file - public API)    │
     │                                          │
     │  ┌──────────┐  tokens   ┌────────────┐   │
     │  │  Lexer   │──────────▶│   Parser   │   │
