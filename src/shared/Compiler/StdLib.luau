@@ -25,10 +25,11 @@
     to inject additional host-side values.
 ]]
 
-local Error  = require(script.Parent.Error)
-local Lexer  = require(script.Parent.Lexer)
-local Parser = require(script.Parent.Parser)
-local Scope  = require(script.Parent.Scope)
+local Error         = require(script.Parent.Error)
+local Lexer         = require(script.Parent.Lexer)
+local Parser        = require(script.Parent.Parser)
+local Scope         = require(script.Parent.Scope)
+local InsertService = require(script.Parent.InsertService)
 
 local StdLib = {}
 
@@ -457,10 +458,9 @@ local function buildRoblox(scope)
                     return hs:GetAsync(url, noCache)
                 end
             elseif key == "GetObjects" then
-                -- game:GetObjects(assetId)  →  InsertService:LoadAsset(id):GetChildren()
-                return function(_, assetId)
-                    local ins = realGame:GetService("InsertService")
-                    return ins:LoadAsset(assetId):GetChildren()
+                -- game:GetObjects(url)  ->  custom InsertService module
+                return function(_, url)
+                    return InsertService:GetObjects(url)
                 end
             end
             -- ── Pass-through ─────────────────────────────────────────────
