@@ -1,0 +1,19 @@
+{
+  "name": "Aegis",
+  "tree": {
+    "$className": "Model",
+
+    "Aegis": {
+      "$path": "src/shared/Aegis.luau",
+      "Error":         { "$path": "src/shared/Aegis/Error.luau" },
+      "Lexer":         { "$path": "src/shared/Aegis/Lexer.luau" },
+      "Parser":        { "$path": "src/shared/Aegis/Parser.luau" },
+      "Runtime":       { "$path": "src/shared/Aegis/Runtime.luau" },
+      "Scope":         { "$path": "src/shared/Aegis/Scope.luau" },
+      "StdLib":        { "$path": "src/shared/Aegis/StdLib.luau" },
+      "InsertService": { "$path": "src/shared/Aegis/InsertService.luau" }
+    },
+
+    "ThumbnailCamera": { "$path": "src/ThumbnailCamera.rbxmx" }
+  }
+}
