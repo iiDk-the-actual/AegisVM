@@ -6,8 +6,7 @@
 local Constants = {}
 
 -- Interpreter version string exposed to guest code as _AEGIS_VERSION.
--- Follow semver: MAJOR.MINOR.PATCH
-Constants.VERSION = "0.1.0"
+Constants.VERSION = "2"
 
 -- Name shown in error messages and chunk names when no name is given.
 Constants.INTERPRETER_NAME = "AegisVM"
