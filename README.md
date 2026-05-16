@@ -5,8 +5,8 @@
 ---
 
 <p align="center">
-  <a href="https://github.com/iiDk-the-actual/AegisVM/releases">
-    <img src="https://img.shields.io/github/v/release/iiDk-the-actual/AegisVM?label=version&style=for-the-badge">
+  <a href="https://github.com/AegisLua/AegisVM/releases">
+    <img src="https://img.shields.io/github/v/release/AegisLua/AegisVM?label=version&style=for-the-badge">
   </a>
   &nbsp;
   <a href="https://create.roblox.com/store/asset/115970020351857">
@@ -59,7 +59,7 @@ The published asset contains a `MainModule` wrapper that returns the Aegis API d
 Clone the repository and sync into Studio with [Rojo](https://rojo.space):
 
 ```bash
-git clone https://github.com/iiDk-the-actual/AegisVM.git
+git clone https://github.com/AegisLua/AegisVM.git
 cd AegisVM
 rojo serve
 ```

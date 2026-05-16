@@ -14,7 +14,7 @@ source text -> Lexer.tokenize() -> Parser.parse() -> Runtime:execBlock()
 
 All six core modules are children of the `Aegis` ModuleScript. The public entry point is `Aegis.luau`. Current version: **2** (see `Constants.luau`).
 
-Repo: `iiDk-the-actual/AegisVM` | Branch: `main` | Toolchain: Rojo 7.7.0-rc.1 via Aftman
+Repo: `AegisLua/AegisVM` | Branch: `main` | Toolchain: Rojo 7.7.0-rc.1 via Aftman
 
 ---
 
