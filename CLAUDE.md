@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Permissions
+
+Claude Code has permission to commit, push, create branches, open pull requests, and create GitHub issues in this repository autonomously without asking for confirmation first.
+
+## File map
+
+See [`FILEMAP.md`](FILEMAP.md) for a per-file breakdown of every source file's purpose and key symbols — faster than reading the source when navigating unfamiliar code.
+
 ## Toolchain
 
 Tools are managed by [Aftman](https://github.com/LPGhatguy/aftman). The only tool declared is Rojo 7.7.0-rc.1.
