@@ -1,6 +1,6 @@
 # TASKS.md - AegisVM Active Task Tracker
 
-Last updated: 2026-05-16
+Last updated: 2026-05-17
 Maintainer convention: claim a task by adding `[agent/dev name]` next to its status before starting work. Mark done when merged.
 
 ---
@@ -15,15 +15,10 @@ _Nothing currently claimed._
 
 | ID | Description | Status | Notes / Dependencies |
 |----|-------------|--------|----------------------|
-| T-01 | Update FILEMAP.md - StdLib builder table is stale | todo | `buildCore` missing `getfenv`/`setfenv`; `buildTask`/`buildBuffer`/`buildRoblox` entries need updating; WebRbxmParser path still listed as `Aegis/WebRbxmParser.luau` instead of `Aegis/Libraries/WebRbxmParser.luau` |
 | T-02 | AegisVM-aware `debug.traceback` | todo | Currently delegates to host `debug.traceback`, which reports the Runtime internals rather than guest code location. Requires Runtime to maintain a call-stack log of `(chunkName, line)` entries for interpreter frames. |
-| T-03 | Wrap deprecated global schedulers for closures | todo | `spawn(fn)` / `delay(t, fn)` globals in `buildRoblox` pass `fn` directly to the host scheduler. If `fn` is an interpreter closure this silently fails. Low priority (task.* is the modern API) but should be consistent with how `task.*` was fixed. |
-| T-04 | Review open GitHub issues #14-#16 | todo | Three issues were filed after the v2 bug hunt. Triage and fix as needed. |
-| T-05 | `table.sort` signal propagation risk | todo | If a closure comparator throws a control-flow signal, it propagates through native `table.sort` leaving the table in a partially-sorted state. Decide whether to wrap the sort call in pcall and document or suppress. |
-| T-06 | Fix StdLib header comment | todo | Line 18: "io / os / file are excluded" is inaccurate - `os` is included (time/clock/date/difftime). Small doc-only fix. |
-| T-07 | `ipairs` metamethod support | todo | `buildCore` exposes the raw host `ipairs`. Lua 5.2 defined `__ipairs` (since removed), but AegisVM could support a custom `__ipairs` metamethod for consistency with `__pairs`. Low priority. |
-| T-08 | Validate `buffer` library in Studio | todo | `buildBuffer` was added but not tested. Verify that `buffer.create`, `buffer.readf64`, `buffer.writestring`, etc. all behave correctly from inside a sandbox. Depends on: T-01 (doc update). |
-| T-09 | Validate `task.*` closure wrapping in Studio | todo | `task.spawn`/`defer`/`delay` now wrap interpreter closures. Test that yielding inside a spawned closure works and that errors surface correctly. |
+| T-07 | `ipairs` metamethod support | todo | `buildCore` exposes the raw host `ipairs`. AegisVM could support a custom `__ipairs` metamethod for consistency with the fixed `__pairs`. Low priority. |
+| T-08 | Validate `buffer` library in Studio | todo | `buildBuffer` was added but not tested. Verify that `buffer.create`, `buffer.readf64`, `buffer.writestring`, etc. all behave correctly from inside a sandbox. Requires Studio. |
+| T-09 | Validate `task.*` and `spawn`/`delay` closure wrapping in Studio | todo | `task.spawn`/`defer`/`delay` and deprecated `spawn`/`delay` now wrap interpreter closures. Test that yielding works and errors surface correctly. Requires Studio. |
 
 ---
 
@@ -39,6 +34,13 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 
 | ID | Description | Commit |
 |----|-------------|--------|
+| T-01 | Update FILEMAP.md - StdLib builders, WebRbxmParser path | `df9f46d` |
+| T-03 | Wrap deprecated `spawn`/`delay` globals for interpreter closures | `df9f46d` |
+| T-05 | `table.sort` signal propagation - resolved as won't-fix; signals propagate naturally, pathological comparators are out of scope | - |
+| T-06 | Fix StdLib header comment (inaccurate os exclusion note) | `df9f46d` |
+| #14 | `tableGet` depth limit - RuntimeError on __index chains > 200 deep | `df9f46d` |
+| #15 | Lexer column tracking after long string - body-only newline scan | `df9f46d` |
+| #16 | `pairs()` now checks `__pairs` on any value type, not just tables | `df9f46d` |
 | - | Add `getfenv`/`setfenv` globals, `buffer` library, `newproxy`; fix `table.sort`/`task.*` closure support | `baa936a` |
 | - | Remove host-exposing `debug` functions; proxy `debug.getfenv`/`setfenv` to sandbox-safe Aegis equivalents | `bb59faa` |
 | - | Fix `__tostring` priority on closures; add coroutine closure wrapping | `7c6cabc` |

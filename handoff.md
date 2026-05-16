@@ -12,7 +12,7 @@ Optimized for quick agent onboarding. Read top to bottom; stop when you have eno
 source text -> Lexer.tokenize() -> Parser.parse() -> Runtime:execBlock()
 ```
 
-All six core modules are children of the `Aegis` ModuleScript. The public entry point is `Aegis.luau`. Current version: **2** (see `Constants.luau`).
+All core modules are children of the `Aegis` ModuleScript. The public entry point is `Aegis.luau`. Current version: **3** (see `Constants.luau`).
 
 Repo: `AegisLua/AegisVM` | Branch: `main` | Toolchain: Rojo 7.7.0-rc.1 via Aftman
 
@@ -26,7 +26,8 @@ All core language features are implemented and working:
 - `getfenv`/`setfenv` present as sandbox-safe proxies (operate on AegisVM global scope, never expose host)
 - `loadstring`/`load` re-enter the interpreter pipeline
 - `game:GetObjects` proxied through WebRbxmParser (Libraries folder)
-- GitHub Actions release workflow: builds `.rbxm`, uploads to release, PATCHes Roblox Open Cloud asset
+- `MainModule` wrapper in the release model enables `require(115970020351857)` directly
+- GitHub Actions release workflow: builds `.rbxm`, uploads to release, patches Roblox Creator Store asset
 
 **No automated test runner exists.** All validation requires Roblox Studio.
 
@@ -34,51 +35,49 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
-1. `getfenv`/`setfenv` added as top-level globals (sandbox-safe proxies matching `debug.getfenv`/`debug.setfenv` behavior added in the previous session)
-2. `buffer` library added - full Roblox buffer API was entirely missing before
-3. `newproxy` forwarded into the sandbox
-4. `table.sort` now wraps interpreter closure comparators so native `table.sort` accepts them
-5. `table.foreach`/`table.foreachi` added as Lua 5.1 compat shims with closure support
-6. `task.spawn`/`defer`/`delay` now wrap interpreter closures before passing to the Roblox scheduler
+Three GitHub issues closed and several tasks resolved in commit `df9f46d`:
 
-Commit: `baa936a`
-
-Prior session: removed host-exposing `debug` functions (`getlocal`/`setlocal`/`getupvalue`/`setupvalue`/`sethook`); proxied `debug.getfenv`/`debug.setfenv` to sandbox equivalents. Commit: `bb59faa`
+- **#14** - `Runtime:tableGet` now takes a `depth` parameter (default 0) and raises a RuntimeError when `__index` chains exceed 200 levels. Circular metatables now produce a clean error instead of a host stack overflow.
+- **#15** - `Lexer:readLongBracketBody` now scans newlines only over `[contentStart, closePos-1]` (body only), not including the closing bracket range. Keeps `lineStart` correctly anchored to the line containing the closing bracket.
+- **#16** - `pairs()` in StdLib no longer guards `__pairs` lookup behind `type(tbl) == "table"`. Non-table values (userdata, Roblox Instances, `newproxy` proxies) now have their `__pairs` metamethod consulted.
+- **T-01** - FILEMAP.md updated: StdLib builder table reflects all current builders and globals; WebRbxmParser path corrected to `Libraries/WebRbxmParser.luau`.
+- **T-03** - Deprecated `spawn(fn)`/`delay(t, fn)` globals in `buildRoblox` now wrap interpreter closures the same way `buildTask` does.
+- **T-06** - StdLib header comment fixed: removed inaccurate "io / os / file are excluded" line; `os` is partially included.
 
 ---
 
 ## What Should Be Done Next
 
-Priority order from `TASKS.md`:
+From `TASKS.md`, in priority order:
 
-1. **T-01** - Update `FILEMAP.md`: StdLib builder table is stale (missing `getfenv`/`setfenv` in buildCore, missing `buildBuffer` row, wrong path for WebRbxmParser). Small, safe, no logic.
-2. **T-04** - Review GitHub issues #14-#16 filed during the v2 bug hunt. Check if any are regressions from recent stdlib changes.
-3. **T-08 / T-09** - Validate `buffer` and `task.*` closure wrapping in Roblox Studio (must be done manually).
-4. **T-02** - AegisVM-aware `debug.traceback`: currently shows host Runtime stack, not guest code frames. Requires Runtime to accumulate a `(chunkName, line)` call log.
-5. **T-03** - Wrap deprecated `spawn`/`delay` globals in `buildRoblox` for interpreter closures (low priority, task.* is preferred).
+1. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Roblox Studio. These were added but have not been tested end-to-end. Requires manual Studio testing.
+2. **T-02** - AegisVM-aware `debug.traceback`: currently shows host Runtime stack, not guest code frames. Requires Runtime to maintain a call-stack log of `(chunkName, line)` entries for interpreter frames. This is the most impactful remaining feature gap.
+3. **T-07** - `__ipairs` metamethod support for `ipairs`. Low priority; only relevant for code using custom iterator objects.
 
 ---
 
 ## Known Risks and Gotchas
 
-**Host-level Luau constraints (Roblox)** - these apply to the interpreter's own source, not to guest code:
-- No `goto`/`::label::` at host level. Loop `continue` in the interpreter itself uses `pcall` + signal re-raise.
+**Host-level Luau constraints (Roblox)** - these apply to the interpreter source, not to guest code:
+- No `goto`/`::label::` at host level. Loop `continue` in the interpreter uses `pcall` + signal re-raise.
 - No bitwise operators (`~`, `&`, `|`, `<<`, `>>`). Use `bit32.*` functions.
 - No `rawset` on the string metatable (Roblox locks it). String method calls on string values are handled in `Runtime:tableGet` by falling back to the `string` global.
 
-**Interpreter closure identity** - closures are plain Lua tables `{__fn=true, params, hasVarArg, block, closure=Scope}`, not real Lua functions. Any stdlib function that receives a callback must check `type(fn) == "table" and fn.__fn` and dispatch through `runtime:callFunctionMulti`. Forgetting this check causes silent nil returns or type errors from native Roblox APIs.
+**Interpreter closure identity** - closures are plain Lua tables `{__fn=true, params, hasVarArg, block, closure=Scope}`, not real Lua functions. Any stdlib function that receives a callback must check `type(fn) == "table" and fn.__fn` and dispatch through `runtime:callFunctionMulti`. Missing this check causes silent nil returns or type errors from native Roblox APIs.
 
-**Control-flow signals** - `break`/`continue`/`return`/`goto` are propagated as sentinel tables thrown via `error(signal, 0)`. Any `pcall` in StdLib that catches errors **must** re-raise signals it does not own. Check `Error.isBreak/isContinue/isReturn/isGoto`. Failing to do this swallows control flow silently.
+**Control-flow signals** - `break`/`continue`/`return`/`goto` are propagated as sentinel tables thrown via `error(signal, 0)`. Any `pcall` in StdLib that catches errors must re-raise signals it does not own. Check `Error.isBreak/isContinue/isReturn/isGoto`. Swallowing a signal silently breaks control flow in guest code.
 
-**`debug.traceback` reports host stack** - the traceback shown to guest code is the Runtime's Lua call stack, not the guest script's logical stack. A future task (T-02) would fix this.
+**`tableGet` depth limit** - the `__index` chain limit is 200, matching `maxCallDepth`. This was added to fix issue #14. If a legitimate deep chain is reported as an error, the limit can be raised.
 
-**`getfenv`/`setfenv` are level-agnostic** - in Lua 5.1, `getfenv(2)` returns the environment of the function 2 levels up. AegisVM returns the same global environment for all numeric levels because there is no per-function environment in the scope chain model.
+**`debug.traceback` reports host stack** - the traceback shown to guest code is the Runtime's Lua call stack, not the guest script's logical stack (T-02).
 
-**`table.sort` with closure comparators** - if the comparator raises a control-flow signal, it propagates through native `table.sort` and the table is left in a partially-sorted state (T-05).
+**`getfenv`/`setfenv` are level-agnostic** - all numeric levels return the same sandbox global environment. This differs from Lua 5.1 per-function environments.
 
-**`setfenv` semantics differ from Lua 5.1** - because AegisVM uses a single shared global scope rather than per-function environments, `setfenv(fn, env)` merges `env` into the global scope rather than replacing a function-local env. This is the closest safe approximation within the AegisVM model.
+**`table.sort` with closure comparators** - if the comparator raises a control-flow signal, it propagates through native `table.sort` and the table is left in a partially-sorted state. This is intentional: pathological comparators are out of scope.
 
-**WebRbxmParser path** - the module was moved to `src/shared/Aegis/Libraries/WebRbxmParser.luau`. FILEMAP.md still shows the old path (T-01).
+**WebRbxmParser clone path** - `script.Parent.Parent:Clone()` inside WebRbxmParser clones the Aegis module. The path is WebRbxmParser -> Libraries -> Aegis. Do not restructure the Libraries folder without updating this line.
+
+**`buildRoblox` now takes `runtime`** - added in the T-03 fix. The `populate` function passes it. If you add a new builder that needs `runtime`, follow the same pattern.
 
 ---
 
@@ -87,13 +86,16 @@ Priority order from `TASKS.md`:
 | File | Why it matters |
 |------|----------------|
 | `src/shared/Aegis.luau` | Public API. Entry point for all external callers. `Sandbox.new`, `compile`, `execAST`. |
-| `src/shared/Aegis/Runtime.luau` | The interpreter. `eval`, `evalBinary`, `tableGet`, `tableSet`, `callFunctionMulti`, `execStat`, `execBlock`. Largest file; most bugs live here. |
-| `src/shared/Aegis/StdLib.luau` | All sandbox globals. If a built-in behaves wrong, start here. Builder functions: `buildCore`, `buildTable`, `buildTask`, `buildCoroutine`, `buildDebug`, `buildRoblox`, etc. |
+| `src/shared/MainModule.luau` | One-liner: `return require(script.Aegis)`. Enables `require(assetId)` from Creator Store. |
+| `src/shared/Aegis/Runtime.luau` | The interpreter. `eval`, `evalBinary`, `tableGet` (now depth-limited), `callFunctionMulti`, `execStat`, `execBlock`. Most bugs live here. |
+| `src/shared/Aegis/StdLib.luau` | All sandbox globals. Builder functions: `buildCore`, `buildTable`, `buildTask`, `buildBuffer`, `buildCoroutine`, `buildDebug`, `buildRoblox` (now takes `runtime`), etc. |
 | `src/shared/Aegis/Scope.luau` | Scope chain. `declareLocal`, `get`, `assign`, `defineGlobal`, `getGlobalScope`. Understand this before touching variable resolution. |
-| `src/shared/Aegis/Error.luau` | All error types and control-flow sentinels. Check here first when signals seem to be swallowed or mishandled. |
-| `src/shared/Aegis/Constants.luau` | Version string and static name constants. Bump `VERSION` here before a release. |
-| `src/shared/Aegis/Libraries/WebRbxmParser.luau` | Rbxm deserializer. `makeAegisScript` clones template scripts and parents a full Aegis clone named `_aegis`. Uses `script.Parent.Parent:Clone()` (Libraries -> Aegis) - do not change without re-checking the clone path. |
-| `default.project.json` | Rojo sync config. Mirrors the module tree; must stay in sync with any new child modules. |
-| `.github/workflows/release.yml` | CI release pipeline. Builds `.rbxm`, uploads to GitHub release, PATCHes Roblox Open Cloud asset with version and description. |
-| `FILEMAP.md` | Quick symbol reference for every file. Currently stale on StdLib builders and WebRbxmParser path (T-01). |
-| `TASKS.md` | Active task list. Claim tasks before starting; mark done when merged. |
+| `src/shared/Aegis/Error.luau` | All error types and control-flow sentinels. Check here first when signals seem swallowed or mishandled. |
+| `src/shared/Aegis/Lexer.luau` | Tokenizer. `readLongBracketBody` was fixed for column tracking (issue #15). |
+| `src/shared/Aegis/Constants.luau` | Version string and static name constants. Bump `VERSION` here before a release. Also holds `CONVERT_BASE_URL`. |
+| `src/shared/Aegis/Libraries/WebRbxmParser.luau` | Rbxm deserializer. Clone path is `script.Parent.Parent:Clone()` (Libraries -> Aegis). |
+| `default.project.json` | Rojo sync config. Must stay in sync with any new child modules. |
+| `model.project.json` | Release build config. Nests Aegis under MainModule so `require(assetId)` works. |
+| `.github/workflows/release.yml` | CI release pipeline. Builds `.rbxm`, uploads to GitHub release, patches Roblox Open Cloud asset. |
+| `FILEMAP.md` | Quick symbol reference for every file. Now up to date as of `df9f46d`. |
+| `TASKS.md` | Active task list. 4 pending tasks remaining (T-02, T-07, T-08, T-09). |
