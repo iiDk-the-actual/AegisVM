@@ -6,7 +6,7 @@
 local Constants = {}
 
 -- Interpreter version string exposed to guest code as _AEGIS_VERSION.
-Constants.VERSION = "3"
+Constants.VERSION = "4"
 
 -- Name shown in error messages and chunk names when no name is given.
 Constants.INTERPRETER_NAME = "AegisVM"
