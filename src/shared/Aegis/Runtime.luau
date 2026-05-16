@@ -621,10 +621,8 @@ function Runtime:evalBinary(node, scope)
     if op == ">" then
         if type(l) == "number" and type(r) == "number" then return l > r end
         if type(l) == "string" and type(r) == "string" then return l > r end
-        local res, ok = callMeta(self, l, "__lt", r)
-        if ok then return isTruthy(singleOf(res)) end
         -- Luau: a > b ≡ b < a
-        res, ok = callMeta(self, r, "__lt", l)
+        local res, ok = callMeta(self, r, "__lt", l)
         if ok then return isTruthy(singleOf(res)) end
         self:runtimeError("attempt to compare two " .. type(l) .. " values", node.line)
     end
