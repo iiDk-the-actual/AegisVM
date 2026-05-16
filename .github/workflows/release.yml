@@ -13,8 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Aftman and tools
-        uses: ok-nick/setup-aftman@v0
+      - name: Install Rojo
+        run: |
+          curl -L -o rojo.zip \
+            "https://github.com/rojo-rbx/rojo/releases/download/v7.7.0-rc.1/rojo-7.7.0-rc.1-linux-x86_64.zip"
+          unzip -q rojo.zip
+          chmod +x rojo
+          echo "$PWD" >> "$GITHUB_PATH"
 
       - name: Build model
         run: |
