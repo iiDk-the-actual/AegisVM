@@ -2,7 +2,7 @@
 	<Meta name="ExplicitAutoJoints">true</Meta>
 	<External>null</External>
 	<External>nil</External>
-	<Item class="Camera" referent="RBXBB94D4DED4414FD996DCDCFB63E8DD10">
+	<Item class="Camera" referent="RBX11671A1FB4FC44048B64AF7A23345F2D">
 		<Properties>
 			<CoordinateFrame name="CFrame">
 				<X>-51.5759888</X>
@@ -46,7 +46,7 @@
 			<int64 name="SourceAssetId">-1</int64>
 			<BinaryString name="Tags"></BinaryString>
 		</Properties>
-		<Item class="Part" referent="RBX7ED7E2F2879D437EB5A231D14E1E4CA0">
+		<Item class="Part" referent="RBXC5B398C746AA47E38C580C542ABFB2B9">
 			<Properties>
 				<token name="shape">1</token>
 				<token name="formFactorRaw">3</token>
@@ -80,7 +80,7 @@
 				<bool name="CastShadow">false</bool>
 				<string name="CollisionGroup">Default</string>
 				<int name="CollisionGroupId">0</int>
-				<Color3uint8 name="Color3uint8">4278190080</Color3uint8>
+				<Color3uint8 name="Color3uint8">4284702562</Color3uint8>
 				<PhysicalProperties name="CustomPhysicalProperties">
 					<CustomPhysics>false</CustomPhysics>
 				</PhysicalProperties>
@@ -144,7 +144,7 @@
 				<int64 name="SourceAssetId">-1</int64>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
-			<Item class="Decal" referent="RBX24892C79EE67447188FB4FFAB2E6487A">
+			<Item class="Decal" referent="RBXF10F3F83F13E4C118305B5296737E220">
 				<Properties>
 					<Color3 name="Color3">
 						<R>1</R>
@@ -155,7 +155,7 @@
 					<Content name="NormalMap"><null></null></Content>
 					<float name="Rotation">0</float>
 					<Content name="RoughnessMap"><null></null></Content>
-					<Content name="Texture"><url>rbxassetid://131417827416412</url></Content>
+					<Content name="Texture"><url>rbxassetid://82944965770381</url></Content>
 					<Content name="TexturePack"><null></null></Content>
 					<string name="TexturePackMetadata"></string>
 					<float name="Transparency">0</float>
@@ -177,7 +177,7 @@
 					<BinaryString name="Tags"></BinaryString>
 				</Properties>
 			</Item>
-			<Item class="Decal" referent="RBX50EDA77B84734AA682675BD61055FB12">
+			<Item class="Decal" referent="RBXAB64613ED79D4BB49ACAC93F567BC79C">
 				<Properties>
 					<Color3 name="Color3">
 						<R>1</R>
@@ -188,7 +188,7 @@
 					<Content name="NormalMap"><null></null></Content>
 					<float name="Rotation">0</float>
 					<Content name="RoughnessMap"><null></null></Content>
-					<Content name="Texture"><url>rbxassetid://131417827416412</url></Content>
+					<Content name="Texture"><url>rbxassetid://82944965770381</url></Content>
 					<Content name="TexturePack"><null></null></Content>
 					<string name="TexturePackMetadata"></string>
 					<float name="Transparency">0</float>
@@ -211,7 +211,7 @@
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="Part" referent="RBX204746E5660B4F3EA76CB6476829F660">
+		<Item class="Part" referent="RBXA8D08C657B7C4C84A64B5D9E4F8FC86A">
 			<Properties>
 				<token name="shape">1</token>
 				<token name="formFactorRaw">3</token>
@@ -245,7 +245,7 @@
 				<bool name="CastShadow">false</bool>
 				<string name="CollisionGroup">Default</string>
 				<int name="CollisionGroupId">0</int>
-				<Color3uint8 name="Color3uint8">4294506744</Color3uint8>
+				<Color3uint8 name="Color3uint8">4279308561</Color3uint8>
 				<PhysicalProperties name="CustomPhysicalProperties">
 					<CustomPhysics>false</CustomPhysics>
 				</PhysicalProperties>
@@ -291,7 +291,7 @@
 				<float name="TopParamB">0.5</float>
 				<token name="TopSurface">3</token>
 				<token name="TopSurfaceInput">0</token>
-				<float name="Transparency">0</float>
+				<float name="Transparency">0.5</float>
 				<Vector3 name="Velocity">
 					<X>0</X>
 					<Y>0</Y>
@@ -310,7 +310,7 @@
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX7FE55F40E47E49BDA0D1D56DBF56F5DB">
+		<Item class="Script" referent="RBXE66E7B6CA6BD4548A683AE4C7CABB22D">
 			<Properties>
 				<ProtectedString name="Source"><![CDATA[if script.Parent:IsA("Camera") and script.Parent.Name == "ThumbnailCamera" then
 	script.Parent:Destroy()
