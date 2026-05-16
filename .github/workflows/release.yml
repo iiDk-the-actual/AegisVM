@@ -13,13 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rojo
-        run: |
-          curl -L -o rojo.zip \
-            "https://github.com/rojo-rbx/rojo/releases/download/v7.7.0-rc.1/rojo-7.7.0-rc.1-linux-x86_64.zip"
-          unzip -q rojo.zip
-          chmod +x rojo
-          echo "$PWD" >> "$GITHUB_PATH"
+      - uses: ok-nick/setup-aftman@v0.4.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build model
         run: |
@@ -32,33 +28,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update Roblox model
-        env:
-          ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
+      - name: Publish to Roblox
         run: |
-          # Roblox returns the CSRF token in headers on a rejected POST
-          CSRF_TOKEN=$(curl -s -o /dev/null -D - \
-            -X POST "https://auth.roblox.com/v2/logout" \
-            -H "Cookie: .ROBLOSECURITY=${ROBLOSECURITY}" \
-            | grep -i "^x-csrf-token:" | awk '{print $2}' | tr -d '\r\n')
-
-          if [ -z "$CSRF_TOKEN" ]; then
-            echo "Failed to fetch CSRF token - check ROBLOSECURITY secret"
-            exit 1
-          fi
-
-          HTTP_STATUS=$(curl -s -o response.txt -w "%{http_code}" \
-            -X POST \
-            "https://www.roblox.com/ide/publish/uploadnewversion?assetid=115970020351857" \
-            -H "Cookie: .ROBLOSECURITY=${ROBLOSECURITY}" \
-            -H "X-CSRF-TOKEN: ${CSRF_TOKEN}" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary "@${ASSET_NAME}")
-
-          echo "Roblox upload HTTP status: ${HTTP_STATUS}"
-          cat response.txt
-
-          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
-            echo "Roblox upload failed with status ${HTTP_STATUS}"
-            exit 1
-          fi
+          curl --location --request PATCH \
+            'https://apis.roblox.com/assets/v1/assets/115970020351857' \
+            --header 'x-api-key: ${{ secrets.ROBLOX_API_KEY }}' \
+            --form 'request={"assetType":"Model","assetId":"115970020351857"}' \
+            --form "fileContent=@${ASSET_NAME};type=model/x-rbxm"
