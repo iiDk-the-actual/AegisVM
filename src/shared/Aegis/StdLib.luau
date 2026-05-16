@@ -7,8 +7,9 @@
     Security model
     ──────────────
     • Only explicitly listed functions are exposed.
-    • Environment-manipulation functions (getfenv, setfenv, loadstring,
-      load, require, dofile, collectgarbage, debug.*) are NOT included.
+    • Environment-manipulation functions (getfenv, setfenv) are NOT included.
+    • loadstring, load, dofile, collectgarbage, and debug.* ARE included
+      (permitted by Roblox Creator Store asset policy).
     • Roblox services, game, workspace, script, etc. are NOT included by
       default.  The caller may inject additional globals after calling
       StdLib.populate(scope).
@@ -25,6 +26,7 @@
     to inject additional host-side values.
 ]]
 
+local Constants     = require(script.Parent.Constants)
 local Error         = require(script.Parent.Error)
 local Lexer         = require(script.Parent.Lexer)
 local Parser        = require(script.Parent.Parser)
@@ -93,6 +95,11 @@ local function buildCore(scope, runtime)
     -- type
     scope:defineGlobal("type", native(function(v)
         return type(v)
+    end))
+
+    -- require
+    scope:defineGlobal("require", native(function(v)
+        return require(v)
     end))
 
     -- error - wraps message in a RuntimeError unless it's already a signal
@@ -226,14 +233,15 @@ local function buildCore(scope, runtime)
     -- typeof (Luau-specific; identical to type for plain values)
     scope:defineGlobal("typeof", native(function(v) return typeof and typeof(v) or type(v) end))
 
-    -- _VERSION
-    scope:defineGlobal("_VERSION", "Luau")
+    -- _VERSION / _AEGIS_VERSION
+    scope:defineGlobal("_VERSION",       "Luau")
+    scope:defineGlobal("_AEGIS_VERSION", Constants.VERSION)
 
     -- loadstring - re-runs the interpreter on new source code.
     -- Returns a callable function on success, or (nil, errorMessage) on failure.
     -- The returned function executes in the sandbox's global scope when called.
     scope:defineGlobal("loadstring", native(function(source, chunkName)
-        chunkName = chunkName or "loadstring"
+        chunkName = chunkName or Constants.DEFAULT_CHUNK_NAME
         -- Tokenise
         local tokens
         local tokOk, tokErr = pcall(function()
@@ -269,6 +277,110 @@ local function buildCore(scope, runtime)
             end
             error(sig, 0)   -- propagate runtime errors / other signals
         end
+    end))
+
+    -- load(chunk [, chunkname [, mode [, env]]])
+    -- Generalized version of loadstring.  chunk may be a string or a
+    -- callable that returns successive string pieces (nil/"" to finish).
+    -- mode and env are accepted for API compatibility but ignored:
+    -- AegisVM only processes text chunks and runs in the sandbox scope.
+    scope:defineGlobal("load", native(function(chunk, chunkName, mode, env)
+        chunkName = chunkName or "=(" .. Constants.INTERPRETER_NAME .. ")"
+        local source
+        if type(chunk) == "string" then
+            source = chunk
+        elseif type(chunk) == "function" or (type(chunk) == "table" and chunk.__fn) then
+            local pieces = {}
+            while true do
+                local piece
+                local ok, err = pcall(function()
+                    if type(chunk) == "function" then
+                        piece = chunk()
+                    else
+                        piece = runtime:callFunction(chunk, {})
+                    end
+                end)
+                if not ok then return nil, Error.format(err) end
+                if piece == nil or piece == "" then break end
+                if type(piece) ~= "string" then
+                    return nil, "reader function must return a string"
+                end
+                pieces[#pieces + 1] = piece
+            end
+            source = table.concat(pieces)
+        else
+            return nil, "bad argument #1 to 'load' (string or function expected, got "
+                .. type(chunk) .. ")"
+        end
+        -- Tokenise
+        local tokens
+        local tokOk, tokErr = pcall(function()
+            tokens = Lexer.tokenize(source, chunkName)
+        end)
+        if not tokOk then return nil, Error.format(tokErr) end
+        -- Parse
+        local ast
+        local parseOk, parseErr = pcall(function()
+            ast = Parser.parse(tokens, chunkName)
+        end)
+        if not parseOk then return nil, Error.format(parseErr) end
+        -- Return the chunk function
+        return function(...)
+            local callArgs = { ... }
+            local callN = select("#", ...)
+            local chunkScope = Scope.new(scope)
+            chunkScope:declareLocal("arg", callArgs)
+            chunkScope:declareLocal("...", { values = callArgs, n = callN })
+            local execOk, sig = pcall(function()
+                runtime:execBlock(ast, chunkScope)
+            end)
+            if execOk then return end
+            if Error.isReturn(sig) then
+                return table.unpack(sig.values, 1, sig.values.n)
+            end
+            error(sig, 0)
+        end
+    end))
+
+    -- dofile(filename)
+    -- Standard Lua: load and execute a file from disk.  Roblox has no
+    -- filesystem, so this always raises an error.
+    scope:defineGlobal("dofile", native(function(filename)
+        error(Error.runtime("dofile is not supported: no filesystem access in Roblox"), 0)
+    end))
+
+    -- collectgarbage(opt [, arg])
+    -- Delegates to the host collectgarbage where the option is safe to
+    -- forward.  Returns 0/true for options the host does not expose.
+    scope:defineGlobal("collectgarbage", native(function(opt, arg)
+        opt = opt or "collect"
+        if opt == "count" then
+            if collectgarbage then
+                local ok, kb, frac = pcall(collectgarbage, "count")
+                if ok then return kb, frac or 0 end
+            end
+            return 0, 0
+        elseif opt == "collect" or opt == "step" then
+            if collectgarbage then pcall(collectgarbage, opt, arg) end
+            return 0
+        elseif opt == "stop" or opt == "restart"
+            or opt == "incremental" or opt == "generational" then
+            if collectgarbage then pcall(collectgarbage, opt, arg) end
+            return 0
+        elseif opt == "setpause" or opt == "setstepmul" then
+            if collectgarbage then
+                local ok, prev = pcall(collectgarbage, opt, arg)
+                if ok then return prev end
+            end
+            return 0
+        elseif opt == "isrunning" then
+            if collectgarbage then
+                local ok, v = pcall(collectgarbage, "isrunning")
+                if ok then return v end
+            end
+            return true
+        end
+        return 0
     end))
 end
 
@@ -425,6 +537,66 @@ local function buildTask(scope)
     })
 end
 
+-- ─── debug library ───────────────────────────────────────────────────
+
+local function buildDebug(scope)
+    local lib = {}
+
+    if debug then
+        -- traceback(msg?, level?) - human-readable stack trace string
+        if debug.traceback then
+            lib.traceback = debug.traceback
+        end
+
+        -- info(level|thread|func, options) - Roblox variant of getinfo
+        -- Returns a string formatted according to the options character string.
+        if debug.info then
+            lib.info = debug.info
+        end
+
+        -- getinfo - standard Lua getinfo; may not exist in all Roblox builds,
+        -- but expose it when present.
+        if debug.getinfo then
+            lib.getinfo = debug.getinfo
+        end
+
+        -- getmetatable / setmetatable bypass the __metatable protection field
+        if debug.getmetatable then
+            lib.getmetatable = debug.getmetatable
+        end
+        if debug.setmetatable then
+            lib.setmetatable = debug.setmetatable
+        end
+
+        -- upvalue access
+        if debug.getupvalue  then lib.getupvalue  = debug.getupvalue  end
+        if debug.setupvalue  then lib.setupvalue  = debug.setupvalue  end
+
+        -- local variable access (level-based; subject to Roblox availability)
+        if debug.getlocal    then lib.getlocal    = debug.getlocal    end
+        if debug.setlocal    then lib.setlocal    = debug.setlocal    end
+
+        -- hook API (may be restricted or absent in Roblox)
+        if debug.sethook     then lib.sethook     = debug.sethook     end
+        if debug.getfenv     then lib.getfenv     = debug.getfenv     end
+        if debug.setfenv     then lib.setfenv     = debug.setfenv     end
+
+        -- Roblox-specific profiling markers
+        if debug.profilebegin then lib.profilebegin = debug.profilebegin end
+        if debug.profileend   then lib.profileend   = debug.profileend   end
+
+        -- Roblox resettelemetry / dumpcounters (Studio only, safe to include)
+        if debug.resetmemorycategory   then
+            lib.resetmemorycategory   = debug.resetmemorycategory
+        end
+        if debug.setmemorycategory     then
+            lib.setmemorycategory     = debug.setmemorycategory
+        end
+    end
+
+    scope:defineGlobal("debug", lib)
+end
+
 -- ─── _G (the guest global table) ────────────────────────────────────
 
 local function buildGlobalTable(scope)
@@ -564,6 +736,7 @@ function StdLib.populate(scope, runtime)
     buildUtf8(scope)
     buildCoroutine(scope)
     buildTask(scope)
+    buildDebug(scope)
     buildRoblox(scope)
     buildGlobalTable(scope)
 end
