@@ -107,12 +107,24 @@ Error types and control-flow signal sentinels.
 
 ---
 
+## `src/shared/Aegis/Constants.luau`
+Compile-time static values for AegisVM. Single source of truth for version strings and name constants.
+
+| Key | Value |
+|---|---|
+| `Constants.VERSION` | Semver string exposed to guest code as `_AEGIS_VERSION` |
+| `Constants.INTERPRETER_NAME` | Display name used in error messages and default chunk names |
+| `Constants.DEFAULT_CHUNK_NAME` | Default chunk name used by `loadstring` / `load` |
+
+---
+
 ## `src/shared/Aegis/StdLib.luau`
 Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 
 | Builder function | What it registers |
 |---|---|
-| `buildCore` | `print`, `warn`, `tostring`, `tonumber`, `type`, `typeof`, `error`, `assert`, `pcall`, `xpcall`, `select`, `ipairs`, `pairs`, `next`, `rawget/set/equal/len`, `unpack`, `setmetatable`, `getmetatable`, `_VERSION`, `loadstring` |
+| `buildCore` | `print`, `warn`, `tostring`, `tonumber`, `type`, `typeof`, `error`, `assert`, `pcall`, `xpcall`, `select`, `ipairs`, `pairs`, `next`, `rawget/set/equal/len`, `unpack`, `setmetatable`, `getmetatable`, `_VERSION`, `_AEGIS_VERSION`, `loadstring`, `load`, `dofile`, `collectgarbage` |
+| `buildDebug` | `debug.*` (all members present on the host `debug` global) |
 | `buildString` | `string.*` (no metatable rawset) |
 | `buildTable` | `table.*` |
 | `buildMath` | `math.*` + Luau extensions |
