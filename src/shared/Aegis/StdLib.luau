@@ -597,13 +597,11 @@ local function buildDebug(scope)
         end
 
         -- info(level|thread|func, options) - Roblox variant of getinfo
-        -- Returns a string formatted according to the options character string.
         if debug.info then
             lib.info = debug.info
         end
 
-        -- getinfo - standard Lua getinfo; may not exist in all Roblox builds,
-        -- but expose it when present.
+        -- getinfo - standard Lua getinfo; may not exist in all Roblox builds
         if debug.getinfo then
             lib.getinfo = debug.getinfo
         end
@@ -616,30 +614,53 @@ local function buildDebug(scope)
             lib.setmetatable = debug.setmetatable
         end
 
-        -- upvalue access
-        if debug.getupvalue  then lib.getupvalue  = debug.getupvalue  end
-        if debug.setupvalue  then lib.setupvalue  = debug.setupvalue  end
-
-        -- local variable access (level-based; subject to Roblox availability)
-        if debug.getlocal    then lib.getlocal    = debug.getlocal    end
-        if debug.setlocal    then lib.setlocal    = debug.setlocal    end
-
-        -- hook API (may be restricted or absent in Roblox)
-        if debug.sethook     then lib.sethook     = debug.sethook     end
-        if debug.getfenv     then lib.getfenv     = debug.getfenv     end
-        if debug.setfenv     then lib.setfenv     = debug.setfenv     end
-
         -- Roblox-specific profiling markers
         if debug.profilebegin then lib.profilebegin = debug.profilebegin end
         if debug.profileend   then lib.profileend   = debug.profileend   end
 
-        -- Roblox resettelemetry / dumpcounters (Studio only, safe to include)
-        if debug.resetmemorycategory   then
-            lib.resetmemorycategory   = debug.resetmemorycategory
+        -- Roblox memory category helpers (Studio / server only)
+        if debug.resetmemorycategory then
+            lib.resetmemorycategory = debug.resetmemorycategory
         end
-        if debug.setmemorycategory     then
-            lib.setmemorycategory     = debug.setmemorycategory
+        if debug.setmemorycategory then
+            lib.setmemorycategory = debug.setmemorycategory
         end
+    end
+
+    -- The following are intentionally absent:
+    --   getlocal / setlocal  - walk the host Lua call stack; level 1 inside the
+    --                          sandbox exposes the Runtime's own locals.
+    --   getupvalue / setupvalue - operate on host function upvalue chains, not
+    --                          AegisVM closure captures.
+    --   sethook              - hooks the host Lua VM's instruction dispatch,
+    --                          not the AegisVM interpreter layer.
+
+    -- getfenv / setfenv are proxied to sandbox-safe Aegis equivalents rather
+    -- than forwarded to the host, which would violate the getfenv/setfenv ban.
+
+    -- debug.getfenv(fn): for interpreter closures returns the sandbox _G proxy
+    -- (the closure's global environment in AegisVM terms). Returns nil for
+    -- native functions so host environments are never exposed.
+    lib.getfenv = function(fn)
+        if type(fn) == "table" and fn.__fn then
+            return scope:get("_G")
+        end
+        return nil
+    end
+
+    -- debug.setfenv(fn, env): for interpreter closures injects all key/value
+    -- pairs from env into the sandbox global scope - the AegisVM equivalent of
+    -- replacing a function's global environment. Returns fn on success, nil if
+    -- fn is not an interpreter closure or env is not a table.
+    lib.setfenv = function(fn, env)
+        if type(fn) == "table" and fn.__fn and type(env) == "table" then
+            local globalScope = scope:getGlobalScope()
+            for k, v in pairs(env) do
+                globalScope:declareLocal(k, v)
+            end
+            return fn
+        end
+        return nil
     end
 
     scope:defineGlobal("debug", lib)
