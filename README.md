@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="#"><img src="gitrsc/logo.png" width="200"></a>
+  <a href="#"><img src="gitrsc/logo.png" width="400"></a>
 </p>
 
 ---
