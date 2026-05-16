@@ -7,7 +7,8 @@
     Security model
     ──────────────
     • Only explicitly listed functions are exposed.
-    • Environment-manipulation functions (getfenv, setfenv) are NOT included.
+    • getfenv / setfenv are included as sandbox-safe proxies: they operate on
+      the AegisVM scope chain and never expose the host Lua environment.
     • loadstring, load, dofile, collectgarbage, and debug.* ARE included
       (permitted by Roblox Creator Store asset policy).
     • Roblox services, game, workspace, script, etc. are NOT included by
@@ -370,6 +371,39 @@ local function buildCore(scope, runtime)
         error(Error.runtime("dofile is not supported: no filesystem access in Roblox"), 0)
     end))
 
+    -- getfenv(fn_or_level): sandbox-safe proxy.
+    -- For interpreter closures and numeric stack levels, returns the _G proxy
+    -- (all AegisVM code shares one global environment). Returns nil for native
+    -- functions so the host Lua environment is never reachable from guest code.
+    scope:defineGlobal("getfenv", native(function(fnOrLevel)
+        if fnOrLevel == nil or type(fnOrLevel) == "number" then
+            return scope:get("_G")
+        end
+        if type(fnOrLevel) == "table" and fnOrLevel.__fn then
+            return scope:get("_G")
+        end
+        return nil
+    end))
+
+    -- setfenv(fn_or_level, env): sandbox-safe proxy.
+    -- Merges all key/value pairs from env into the sandbox global scope, which
+    -- is the AegisVM equivalent of replacing a function's environment table.
+    -- Returns fn for interpreter closures or nil otherwise.
+    scope:defineGlobal("setfenv", native(function(fnOrLevel, env)
+        if type(env) ~= "table" then return nil end
+        local isLevel   = type(fnOrLevel) == "number"
+        local isClosure = type(fnOrLevel) == "table" and fnOrLevel.__fn
+        if fnOrLevel == nil or isLevel or isClosure then
+            local globalScope = scope:getGlobalScope()
+            for k, v in pairs(env) do
+                globalScope:declareLocal(k, v)
+            end
+            if isClosure then return fnOrLevel end
+            return nil
+        end
+        return nil
+    end))
+
     -- collectgarbage(opt [, arg])
     -- Delegates to the host collectgarbage where the option is safe to
     -- forward.  Returns 0/true for options the host does not expose.
@@ -451,12 +485,31 @@ end
 
 -- ─── table library ───────────────────────────────────────────────────
 
-local function buildTable(scope)
+local function buildTable(scope, runtime)
+    -- Call fn (native or interpreter closure) and return the first result.
+    local function callComp(fn, a, b)
+        if type(fn) == "table" and fn.__fn then
+            local mr = runtime:callFunctionMulti(fn, {a, b})
+            local r = mr[1]
+            return r ~= nil and r ~= false
+        end
+        return fn(a, b)
+    end
+
     local lib = {
         insert  = table.insert,
         remove  = table.remove,
         concat  = table.concat,
-        sort    = table.sort,
+        -- sort: wrap interpreter closure comparators
+        sort    = function(t, comp)
+            if comp == nil then
+                table.sort(t)
+            elseif type(comp) == "table" and comp.__fn then
+                table.sort(t, function(a, b) return callComp(comp, a, b) end)
+            else
+                table.sort(t, comp)
+            end
+        end,
         unpack  = table.unpack,
         pack    = table.pack,
         move    = table.move,
@@ -475,6 +528,32 @@ local function buildTable(scope)
                 if type(k) == "number" and k > max then max = k end
             end
             return max
+        end,
+        -- Lua 5.1 compat: table.foreach / table.foreachi
+        -- Iterate t calling f(key, value); stop early if f returns non-nil.
+        foreach = function(t, f)
+            for k, v in pairs(t) do
+                local r
+                if type(f) == "table" and f.__fn then
+                    local mr = runtime:callFunctionMulti(f, {k, v})
+                    r = mr[1]
+                else
+                    r = f(k, v)
+                end
+                if r ~= nil then return r end
+            end
+        end,
+        foreachi = function(t, f)
+            for i, v in ipairs(t) do
+                local r
+                if type(f) == "table" and f.__fn then
+                    local mr = runtime:callFunctionMulti(f, {i, v})
+                    r = mr[1]
+                else
+                    r = f(i, v)
+                end
+                if r ~= nil then return r end
+            end
         end,
     }
     scope:defineGlobal("table", lib)
@@ -574,14 +653,57 @@ end
 
 -- ─── task library (Roblox) ───────────────────────────────────────────
 
-local function buildTask(scope)
+local function buildTask(scope, runtime)
     if not task then return end
+    -- task.spawn/defer/delay require real Lua functions.  Wrap interpreter
+    -- closures so the Roblox scheduler accepts them.
+    local function wrapFn(fn)
+        if type(fn) == "table" and fn.__fn then
+            return function(...)
+                local args = { ... }
+                runtime:callFunctionMulti(fn, args)
+            end
+        end
+        return fn
+    end
     scope:defineGlobal("task", {
-        spawn   = task.spawn,
-        defer   = task.defer,
-        delay   = task.delay,
-        wait    = task.wait,
-        cancel  = task.cancel,
+        spawn  = function(fn, ...) return task.spawn(wrapFn(fn), ...) end,
+        defer  = function(fn, ...) return task.defer(wrapFn(fn), ...) end,
+        delay  = function(t, fn, ...) return task.delay(t, wrapFn(fn), ...) end,
+        wait   = task.wait,
+        cancel = task.cancel,
+    })
+end
+
+-- ─── buffer library (Roblox) ─────────────────────────────────────────
+
+local function buildBuffer(scope)
+    if not buffer then return end
+    scope:defineGlobal("buffer", {
+        create      = buffer.create,
+        fromstring  = buffer.fromstring,
+        tostring    = buffer.tostring,
+        len         = buffer.len,
+        copy        = buffer.copy,
+        fill        = buffer.fill,
+        readi8      = buffer.readi8,
+        readu8      = buffer.readu8,
+        readi16     = buffer.readi16,
+        readu16     = buffer.readu16,
+        readi32     = buffer.readi32,
+        readu32     = buffer.readu32,
+        readf32     = buffer.readf32,
+        readf64     = buffer.readf64,
+        writei8     = buffer.writei8,
+        writeu8     = buffer.writeu8,
+        writei16    = buffer.writei16,
+        writeu16    = buffer.writeu16,
+        writei32    = buffer.writei32,
+        writeu32    = buffer.writeu32,
+        writef32    = buffer.writef32,
+        writef64    = buffer.writef64,
+        readstring  = buffer.readstring,
+        writestring = buffer.writestring,
     })
 end
 
@@ -802,6 +924,11 @@ local function buildRoblox(scope)
     -- Plugin context (only non-nil when running inside a Studio plugin)
     local plug = hostGlobal("plugin")
     if plug then scope:defineGlobal("plugin", plug) end
+
+    -- newproxy(createMetatable?) - creates an empty userdata value.
+    -- Roblox-specific; safe to forward directly.
+    local np = hostGlobal("newproxy")
+    if np then scope:defineGlobal("newproxy", np) end
 end
 
 -- ─── Populate ────────────────────────────────────────────────────────
@@ -809,12 +936,13 @@ end
 function StdLib.populate(scope, runtime)
     buildCore(scope, runtime)
     buildString(scope)
-    buildTable(scope)
+    buildTable(scope, runtime)
     buildMath(scope)
     buildBit32(scope)
     buildUtf8(scope)
     buildCoroutine(scope, runtime)
-    buildTask(scope)
+    buildTask(scope, runtime)
+    buildBuffer(scope)
     buildDebug(scope)
     buildRoblox(scope)
     buildGlobalTable(scope)

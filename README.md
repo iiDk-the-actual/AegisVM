@@ -191,7 +191,7 @@ The sandbox provides a safe subset of the Luau standard library. All environment
 
 | Library     | Included                                                                 |
 |-------------|--------------------------------------------------------------------------|
-| Core        | `print`, `warn`, `tostring`, `tonumber`, `type`, `typeof`, `error`, `assert`, `pcall`, `xpcall`, `select`, `ipairs`, `pairs`, `next`, `rawget`, `rawset`, `rawequal`, `rawlen`, `unpack`, `setmetatable`, `getmetatable`, `loadstring` |
+| Core        | `print`, `warn`, `tostring`, `tonumber`, `type`, `typeof`, `error`, `assert`, `pcall`, `xpcall`, `select`, `ipairs`, `pairs`, `next`, `rawget`, `rawset`, `rawequal`, `rawlen`, `unpack`, `setmetatable`, `getmetatable`, `loadstring`, `getfenv`, `setfenv` |
 | `string`    | Full (`byte`, `char`, `find`, `format`, `gmatch`, `gsub`, `len`, `lower`, `match`, `rep`, `reverse`, `sub`, `upper`, `split`) |
 | `table`     | Full (`insert`, `remove`, `concat`, `sort`, `unpack`, `pack`, `move`, `find`, `create`, `clear`, `clone`) |
 | `math`      | Full, including Luau extensions (`sign`, `clamp`, `round`)               |
@@ -199,8 +199,9 @@ The sandbox provides a safe subset of the Luau standard library. All environment
 | `utf8`      | Full                                                                     |
 | `coroutine` | Full                                                                     |
 | `task`      | `spawn`, `defer`, `delay`, `wait`, `cancel`                              |
+| `buffer`    | Full (Roblox buffer API)                                                 |
 | `os`        | `time`, `clock`, `date`, `difftime`                                      |
-| Roblox      | `game`, `workspace`, `Enum`, `Instance`, `shared`, all value-type constructors (`Vector3`, `CFrame`, `Color3`, `UDim2`, etc.) |
+| Roblox      | `game`, `workspace`, `Enum`, `Instance`, `shared`, `newproxy`, all value-type constructors (`Vector3`, `CFrame`, `Color3`, `UDim2`, etc.) |
 
 **Excluded:** `getfenv`, `setfenv`, `load`, `dofile`, `collectgarbage`, `debug.*`, `io.*`, direct service shortcuts (`Players`, `RunService`, etc. - use `game:GetService()` instead).
 
