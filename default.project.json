@@ -7,6 +7,7 @@
       "Aegis":
       {
         "$path": "src/shared/Aegis.luau",
+        "Constants": { "$path": "src/shared/Aegis/Constants.luau" },
         "Error":   { "$path": "src/shared/Aegis/Error.luau" },
         "Lexer":   { "$path": "src/shared/Aegis/Lexer.luau" },
         "Parser":  { "$path": "src/shared/Aegis/Parser.luau" },
