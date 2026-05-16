@@ -29,9 +29,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to Roblox
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name }}
         run: |
+          DESCRIPTION="AegisVM is a complete, sandboxed Luau interpreter written entirely in Luau. It tokenises, parses, and evaluates Luau source code at runtime - no loadstring, no getfenv, no bytecode injection, no external executors. Everything is manual: a hand-written lexer, a recursive-descent parser with Pratt expression parsing, and an AST-walking runtime.\n\nCURRENT RELEASE VERSION: ${RELEASE_VERSION}\nThis module is distributed for free under the MIT license. GitHub is accessible via social links."
           curl --location --request PATCH \
             'https://apis.roblox.com/assets/v1/assets/115970020351857' \
             --header 'x-api-key: ${{ secrets.ROBLOX_API_KEY }}' \
-            --form 'request={"assetType":"Model","assetId":"115970020351857"}' \
+            --form "request={\"assetType\":\"Model\",\"assetId\":\"115970020351857\",\"displayName\":\"AegisVM\",\"description\":\"${DESCRIPTION}\"}" \
             --form "fileContent=@${ASSET_NAME};type=model/x-rbxm"
