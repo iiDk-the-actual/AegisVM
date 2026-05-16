@@ -49,7 +49,7 @@
     Quick-start
     ═══════════
 
-        local Aegis = require(ReplicatedStorage.Aegis)
+        local Aegis = require(game:GetService("ServerScriptService").Aegis)
 
         -- Run code in a fresh sandbox
         local ok, err = Aegis.run([[

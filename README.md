@@ -64,7 +64,7 @@ cd AegisVM
 rojo serve
 ```
 
-The `default.project.json` places the `Aegis` ModuleScript in `ServerScriptService`. Move it to `ReplicatedStorage` or anywhere else by editing that file before syncing.
+The `default.project.json` places the `Aegis` ModuleScript in `ServerScriptService`.
 
 ### Manual
 
@@ -75,7 +75,7 @@ Copy `src/server/Aegis.luau` and the `src/server/Aegis/` folder into Studio as a
 ## Quick Start
 
 ```lua
-local Aegis = require(ReplicatedStorage.Aegis)
+local Aegis = require(game:GetService("ServerScriptService").Aegis)
 
 -- Run code in a fresh, isolated sandbox
 local ok, err = Aegis.run([[
