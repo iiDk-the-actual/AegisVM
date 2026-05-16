@@ -8,6 +8,10 @@
   <a href="https://github.com/iiDk-the-actual/AegisVM/releases">
     <img src="https://img.shields.io/github/v/release/iiDk-the-actual/AegisVM?label=version&style=for-the-badge">
   </a>
+  &nbsp;
+  <a href="https://create.roblox.com/store/asset/115970020351857">
+    <img src="https://img.shields.io/badge/Roblox-Public%20Build-E52207?style=for-the-badge&logo=roblox&logoColor=white">
+  </a>
 </p>
 
 ---
