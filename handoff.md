@@ -37,10 +37,9 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
-- **SecurityCapabilities maxed on all scripts** (`a833a00`) - 14 `.meta.json` files created alongside every `.luau` file in `src/`. Each sets `Capabilities` to `9007199254740991` (all bits 0-52). Rojo merges these at sync time into both the Studio sync and release `.rbxm`.
-- **Version 4 released** (`112baa2`) - bump + GitHub release published. CI handled `.rbxm` build and Roblox Creator Store patch.
-- **CI YAML false-positive suppressed** (`6512927`) - `# yaml-language-server: $schema=` added to `release.yml`.
-- Prior session (`df9f46d`) - fixed issues #14 (tableGet depth limit), #15 (Lexer column tracking), #16 (pairs userdata); fixed T-01/T-03/T-06.
+- **`src/shared` renamed to `src/server`** (`76ed71c`) - directory rename plus all references updated across both project JSONs, CLAUDE.md, FILEMAP.md, README.md, handoff.md.
+- **NewScript library extracted** (`b3ed2e9`) - `makeAegisScript` moved out of WebRbxmParser into a new `Libraries/NewScript.luau` module (`NewScript.new(opts)`). The three template scripts (ScriptTemplate, LocalScriptTemplate, ModuleScriptTemplate) moved under NewScript. WebRbxmParser now requires and calls NewScript. Libraries.luau exposes it as `Libraries.NewScript`. Template scripts switched from `Enabled=false` to `Disabled=true` in both project JSONs.
+- **Example require paths fixed** (`d6cb1bd`) - all example code updated from `ReplicatedStorage.Aegis` to `game:GetService("ServerScriptService").Aegis` in README.md and Aegis.luau header comment.
 
 ---
 
@@ -73,7 +72,7 @@ From `TASKS.md`, in priority order:
 
 **`table.sort` with closure comparators** - if the comparator raises a control-flow signal, the table is left partially sorted. Intentional; pathological comparators are out of scope.
 
-**WebRbxmParser clone path** - `script.Parent.Parent:Clone()` clones Aegis: WebRbxmParser -> Libraries -> Aegis. Do not restructure the Libraries folder without updating this.
+**NewScript clone path** - `script.Parent.Parent:Clone()` inside NewScript.luau clones Aegis: NewScript -> Libraries -> Aegis. Do not restructure the Libraries folder without updating this path.
 
 **`buildRoblox` takes `runtime`** - added when deprecated scheduler wrapping was implemented. Follow the same pattern for any new builder needing `runtime`.
 
@@ -93,7 +92,8 @@ From `TASKS.md`, in priority order:
 | `src/server/Aegis/Error.luau` | Error types and control-flow sentinels. Check here first when signals are swallowed. |
 | `src/server/Aegis/Lexer.luau` | Tokenizer. `readLongBracketBody` scans body only (not closing bracket) for newlines. |
 | `src/server/Aegis/Constants.luau` | Version string and `CONVERT_BASE_URL`. Bump `VERSION` before a release. |
-| `src/server/Aegis/Libraries/WebRbxmParser.luau` | Rbxm deserializer. Clone path: `script.Parent.Parent:Clone()`. |
+| `src/server/Aegis/Libraries/NewScript.luau` | Script instance factory. `NewScript.new(opts)` clones a template and injects `_aegis`. Clone path: `script.Parent.Parent:Clone()`. |
+| `src/server/Aegis/Libraries/WebRbxmParser.luau` | Rbxm deserializer. Delegates script creation to NewScript. |
 | `default.project.json` | Rojo sync config. Must stay in sync with any new child modules. |
 | `model.project.json` | Release build config. Nests Aegis under MainModule for `require(assetId)`. |
 | `.github/workflows/release.yml` | CI release pipeline. Builds `.rbxm`, uploads, patches Roblox asset. |
