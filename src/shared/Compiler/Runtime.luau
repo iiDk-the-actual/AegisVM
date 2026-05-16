@@ -1,5 +1,5 @@
 --[[
-    Runtime.luau — AST interpreter / evaluator
+    Runtime.luau - AST interpreter / evaluator
 
     Walks the AST produced by Parser and executes each node.
 
@@ -22,7 +22,7 @@
         { __fn = true, params, hasVarArg, block, closure (Scope) }
     When the function is called, a new child scope of `closure` is created.
     Because Scope.variables is a regular Lua table, all mutations by nested
-    functions are naturally visible to sibling closures—no upvalue boxing needed.
+    functions are naturally visible to sibling closures-no upvalue boxing needed.
 
     Control flow
     ~~~~~~~~~~~~

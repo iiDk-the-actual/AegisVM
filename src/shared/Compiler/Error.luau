@@ -1,5 +1,5 @@
 --[[
-    Error.luau — Error types and control-flow signals
+    Error.luau - Error types and control-flow signals
 
     The engine distinguishes between two classes of "thrown" values:
 

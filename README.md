@@ -12,7 +12,7 @@
 
 ---
 
-AegisVM is a complete, sandboxed Luau interpreter written entirely in Luau. It tokenises, parses, and evaluates Luau source code at runtime — no `loadstring`, no `getfenv`, no bytecode injection, no external executors. Everything is manual: a hand-written lexer, a recursive-descent parser with Pratt expression parsing, and an AST-walking runtime.
+AegisVM is a complete, sandboxed Luau interpreter written entirely in Luau. It tokenises, parses, and evaluates Luau source code at runtime - no `loadstring`, no `getfenv`, no bytecode injection, no external executors. Everything is manual: a hand-written lexer, a recursive-descent parser with Pratt expression parsing, and an AST-walking runtime.
 
 It runs inside Roblox Studio as a set of ModuleScripts and can be used to execute untrusted or dynamically generated Luau code safely within any game.
 
@@ -21,7 +21,7 @@ It runs inside Roblox Studio as a set of ModuleScripts and can be used to execut
 ## Architecture
 
 ```
-Compiler.luau       (public API — entry point)
+Compiler.luau       (public API - entry point)
 ├── Lexer.luau      tokeniser, produces a flat token list
 ├── Parser.luau     recursive-descent + Pratt parser, produces an AST
 ├── Runtime.luau    AST evaluator / interpreter
@@ -32,9 +32,9 @@ Compiler.luau       (public API — entry point)
 
 Source text flows through three stages:
 
-1. **Lexer** — scans the raw source byte-by-byte and emits tokens `{ type, value, line, col }`. Long strings, escape sequences, all Luau operators, and compound assignment are handled.
-2. **Parser** — builds an AST from the token stream. Type annotations are parsed and discarded; they have no runtime effect.
-3. **Runtime** — walks the AST. `eval()` handles expressions; `execStat()` handles statements. Control flow (`break`, `continue`, `return`, `goto`) is propagated via Lua's own `error()`/`pcall()` mechanism using sentinel signal tables.
+1. **Lexer** - scans the raw source byte-by-byte and emits tokens `{ type, value, line, col }`. Long strings, escape sequences, all Luau operators, and compound assignment are handled.
+2. **Parser** - builds an AST from the token stream. Type annotations are parsed and discarded; they have no runtime effect.
+3. **Runtime** - walks the AST. `eval()` handles expressions; `execStat()` handles statements. Control flow (`break`, `continue`, `return`, `goto`) is propagated via Lua's own `error()`/`pcall()` mechanism using sentinel signal tables.
 
 ---
 
@@ -196,7 +196,7 @@ The sandbox provides a safe subset of the Luau standard library. All environment
 | `os`        | `time`, `clock`, `date`, `difftime`                                      |
 | Roblox      | `game`, `workspace`, `Enum`, `Instance`, `shared`, all value-type constructors (`Vector3`, `CFrame`, `Color3`, `UDim2`, etc.) |
 
-**Excluded:** `getfenv`, `setfenv`, `load`, `require`, `dofile`, `collectgarbage`, `debug.*`, `io.*`, direct service shortcuts (`Players`, `RunService`, etc. — use `game:GetService()` instead).
+**Excluded:** `getfenv`, `setfenv`, `load`, `require`, `dofile`, `collectgarbage`, `debug.*`, `io.*`, direct service shortcuts (`Players`, `RunService`, etc. - use `game:GetService()` instead).
 
 ---
 
@@ -215,11 +215,11 @@ AegisVM supports the full Luau grammar:
 - `if / elseif / else`
 - `break`, `continue`, `goto`, labels
 - `do...end` blocks
-- Type annotations (parsed and discarded — no runtime effect)
+- Type annotations (parsed and discarded - no runtime effect)
 - Method syntax (`obj:method()`)
 - String method calls (`("hello"):upper()`)
 - Roblox `Instance` property and method access
-- `loadstring` — re-compiles source through AegisVM and returns a callable function
+- `loadstring` - re-compiles source through AegisVM and returns a callable function
 
 ---
 

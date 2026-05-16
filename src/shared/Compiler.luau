@@ -1,5 +1,5 @@
 --[[
-    Compiler.luau — Luau-in-Luau execution engine (main entry point)
+    Compiler.luau - Luau-in-Luau execution engine (main entry point)
 
     ══════════════════════════════════════════════════════════════════
     A complete, standalone Luau source-code interpreter written
@@ -20,7 +20,7 @@
     ════════════
 
     ┌──────────────────────────────────────────┐
-    │  Compiler.luau  (this file — public API) │
+    │  Compiler.luau  (this file - public API) │
     │                                          │
     │  ┌──────────┐  tokens   ┌────────────┐   │
     │  │  Lexer   │──────────▶│   Parser   │   │
@@ -39,12 +39,12 @@
     └──────────────────────────────────────────┘
 
     Modules (children of this ModuleScript in Roblox):
-        Compiler.Lexer    — Tokeniser
-        Compiler.Parser   — Recursive-descent + Pratt expression parser
-        Compiler.Runtime  — AST evaluator / interpreter
-        Compiler.Scope    — Lexical scope chain
-        Compiler.StdLib   — Sandboxed standard library
-        Compiler.Error    — Error types and control-flow signals
+        Compiler.Lexer    - Tokeniser
+        Compiler.Parser   - Recursive-descent + Pratt expression parser
+        Compiler.Runtime  - AST evaluator / interpreter
+        Compiler.Scope    - Lexical scope chain
+        Compiler.StdLib   - Sandboxed standard library
+        Compiler.Error    - Error types and control-flow signals
 
     ══════════════════════════════════════════════════════════════════
     Quick-start
@@ -108,15 +108,15 @@
     from `closure` (the scope in which the function was *defined*, not
     the one from which it is *called*).  Because Scope.variables is a
     plain Lua table, mutations through any nested function are
-    automatically visible to sibling closures—identical semantics to
+    automatically visible to sibling closures-identical semantics to
     Lua's native upvalues.
 
     Environment / scope model
     ──────────────────────────
     • Scope.new(parent) creates a scope node in the chain.
-    • scope:declareLocal(name, value) — binds a new local in THIS scope.
-    • scope:get(name)                 — walks the chain outward.
-    • scope:assign(name, value)       — updates an existing binding or
+    • scope:declareLocal(name, value) - binds a new local in THIS scope.
+    • scope:get(name)                 - walks the chain outward.
+    • scope:assign(name, value)       - updates an existing binding or
                                         creates a global if not found.
     • The global scope is the root node (parent = nil).
     • StdLib.populate(scope, runtime) fills the global scope with safe

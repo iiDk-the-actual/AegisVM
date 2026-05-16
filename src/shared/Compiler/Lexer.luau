@@ -1,5 +1,5 @@
 --[[
-    Lexer.luau — Luau source tokenizer
+    Lexer.luau - Luau source tokenizer
 
     Converts raw source text into a sequential list of Token objects.
 
@@ -38,14 +38,14 @@ local TT = {
     -- Identifier (not a keyword)
     IDENTIFIER = "IDENTIFIER",
 
-    -- Keywords — the token type IS the keyword text
+    -- Keywords - the token type IS the keyword text
     -- (listed here only for documentation / autocomplete)
     --  "and" "break" "continue" "do" "else" "elseif" "end"
     --  "false" "for" "function" "goto" "if" "in" "local"
     --  "nil" "not" "or" "repeat" "return" "then" "true"
     --  "until" "while" "type" "typeof" "export"
 
-    -- Operators & punctuation — token type IS the symbol string
+    -- Operators & punctuation - token type IS the symbol string
     -- Single-char: + - * % ^ # & | ~ < > = ( ) [ ] { } , ; : . ? @
     -- Multi-char:  // .. ... == ~= <= >= << >> -> :: += -= *= /= //= %= ^= ..= &= |= <<= >>=
 

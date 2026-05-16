@@ -1,5 +1,5 @@
 --[[
-    Scope.luau — Lexical scope chain and environment manager
+    Scope.luau - Lexical scope chain and environment manager
 
     Implements Luau's scoping rules:
 
@@ -15,7 +15,7 @@
       otherwise the assignment goes to the global scope.
     • Closures capture the scope in which they are defined.  Because all
       variables live inside Lua table cells (scope.variables[name]), sharing
-      between sibling closures is automatic — they both reference the same
+      between sibling closures is automatic - they both reference the same
       parent scope table.
 
     Implementation note on nil values

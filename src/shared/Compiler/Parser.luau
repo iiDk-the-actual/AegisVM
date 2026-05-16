@@ -1,5 +1,5 @@
 --[[
-    Parser.luau — Recursive-descent Luau parser
+    Parser.luau - Recursive-descent Luau parser
 
     Consumes the token list produced by Lexer and emits an AST.
 
@@ -291,7 +291,7 @@ function Parser:parseTypeSimple()
             end
         end
     else
-        -- Unrecognised — just skip one token to avoid infinite loop
+        -- Unrecognised - just skip one token to avoid infinite loop
         if not self:check("EOF") then self:advance() end
     end
 
@@ -861,7 +861,7 @@ function Parser:parsePrimaryExpr()
     elseif t.type == "{" then
         return self:parseTableConstructor()
 
-    -- Parenthesised expression — wrapping with () adjusts to single value
+    -- Parenthesised expression - wrapping with () adjusts to single value
     elseif t.type == "(" then
         self:advance()
         local inner = self:parseExpr()

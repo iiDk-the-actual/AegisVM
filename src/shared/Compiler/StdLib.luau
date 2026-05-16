@@ -1,5 +1,5 @@
 --[[
-    StdLib.luau — Safe sandboxed standard library
+    StdLib.luau - Safe sandboxed standard library
 
     Populates the interpreter's global scope with a whitelisted subset of
     Luau's built-in library.
@@ -94,7 +94,7 @@ local function buildCore(scope, runtime)
         return type(v)
     end))
 
-    -- error — wraps message in a RuntimeError unless it's already a signal
+    -- error - wraps message in a RuntimeError unless it's already a signal
     scope:defineGlobal("error", native(function(msg, level)
         if Error.isSignal(msg) then
             error(msg, 0)  -- pass-through control flow signals
@@ -132,7 +132,7 @@ local function buildCore(scope, runtime)
         end
     end
 
-    -- pcall — must not swallow interpreter control-flow signals
+    -- pcall - must not swallow interpreter control-flow signals
     scope:defineGlobal("pcall", native(function(fn, ...)
         local args  = { ... }
         local rets  = table.pack(pcall(function()
@@ -145,7 +145,7 @@ local function buildCore(scope, runtime)
             return table.unpack(rets, 1, rets.n)  -- true, v1, v2, …
         end
         local sig = rets[2]
-        -- Re-raise control-flow signals — guest pcall must NOT swallow them
+        -- Re-raise control-flow signals - guest pcall must NOT swallow them
         if Error.isBreak(sig) or Error.isContinue(sig)
             or Error.isReturn(sig) or Error.isGoto(sig) then
             error(sig, 0)
@@ -194,7 +194,7 @@ local function buildCore(scope, runtime)
     -- ipairs
     scope:defineGlobal("ipairs", native(ipairs))
 
-    -- pairs — supports __pairs metamethod
+    -- pairs - supports __pairs metamethod
     scope:defineGlobal("pairs", native(function(tbl)
         if type(tbl) == "table" then
             local mt = getmetatable(tbl)
@@ -228,7 +228,7 @@ local function buildCore(scope, runtime)
     -- _VERSION
     scope:defineGlobal("_VERSION", "Luau")
 
-    -- loadstring — re-runs the interpreter on new source code.
+    -- loadstring - re-runs the interpreter on new source code.
     -- Returns a callable function on success, or (nil, errorMessage) on failure.
     -- The returned function executes in the sandbox's global scope when called.
     scope:defineGlobal("loadstring", native(function(source, chunkName)
