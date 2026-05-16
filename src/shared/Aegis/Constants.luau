@@ -14,4 +14,7 @@ Constants.INTERPRETER_NAME = "AegisVM"
 -- Default chunk name used by loadstring / load when none is supplied.
 Constants.DEFAULT_CHUNK_NAME = "loadstring"
 
+-- Base URL for the rbxm conversion service used by WebRbxmParser.
+Constants.CONVERT_BASE_URL = "https://convert.iidk.online/rbxm?url="
+
 return Constants

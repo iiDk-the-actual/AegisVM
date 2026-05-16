@@ -16,6 +16,8 @@
 
 ]]--
 
+local Constants = require(script.Parent.Parent.Constants)
+
 local module = {}
 
 local HttpService = game:GetService("HttpService")
@@ -367,7 +369,7 @@ end
 
 function module:GetObjects(url)
 	local rbxmData = HttpService:GetAsync(
-		"https://convert.iidk.online/rbxm?url=" .. HttpService:UrlEncode(url)
+		Constants.CONVERT_BASE_URL .. HttpService:UrlEncode(url)
 	)
 	local data = HttpService:JSONDecode(rbxmData)
 
