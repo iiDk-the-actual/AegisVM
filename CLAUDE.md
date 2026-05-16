@@ -122,6 +122,66 @@ Aegis.newSandbox({ maxCallDepth, noStdLib, globals })
 sandbox.scope:defineGlobal(name, value)            -- inject host values
 ```
 
+## TASKS.md
+
+`TASKS.md` is the active task tracker for the project. Read it at the start of
+every session to understand what is pending and what is already done.
+
+### During a session
+
+- Before starting a task, add your name or "Claude" next to its status so
+  other agents know it is claimed: `in progress [Claude]`
+- When a task is finished and merged, move it to the Recently Completed table
+  with its commit hash
+- If you discover a new bug or piece of work while doing something else, add it
+  as a new Pending row before finishing the session
+- If a task turns out to be blocked on something, change its status to
+  `blocked` and add a note explaining what it is waiting on
+
+### At the end of a session
+
+- Make sure every task you touched has an accurate status
+- Remove any `[Claude]` claim markers from tasks that are back to pending
+- Commit and push the updated TASKS.md as part of your final commit, or as a
+  standalone `docs: update TASKS.md` commit if nothing else changed
+
+---
+
+## handoff.md
+
+`handoff.md` is the context transfer document between sessions and agents.
+It exists so the next agent can get up to speed in under two minutes without
+reading the full commit history or every source file.
+
+### At the start of a session
+
+Read the "What should be done next" and "Known risks and gotchas" sections
+before touching any code. The file may be slightly stale - verify key claims
+against the actual source before acting on them.
+
+### At the end of a session
+
+Update handoff.md before the final commit. The sections that most often need
+updating are:
+
+- "What was just completed" - replace with what you actually did this session,
+  including commit hashes
+- "What should be done next" - reorder or rewrite based on what is now most
+  important; pull from TASKS.md
+- "Current state of the system" - update any facts that changed (new globals
+  added, modules moved, behaviour changed, etc.)
+- "Known risks and gotchas" - add anything surprising you ran into that the
+  next agent should know about
+
+Keep it concise. The goal is a document a fresh agent can read in two minutes
+and immediately know what to do and what to avoid. Do not pad it with
+information that is already obvious from reading the source.
+
+Commit the updated handoff.md together with any other end-of-session changes,
+or as a standalone `docs: update handoff.md` commit.
+
+---
+
 ## Creating a Release
 
 Follow these steps in order. Do not skip or reorder them.
