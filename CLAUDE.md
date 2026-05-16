@@ -6,9 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Claude Code has permission to commit, push, create branches, open pull requests, and create GitHub issues in this repository autonomously without asking for confirmation first.
 
+## Writing style
+
+Do not use fancy Unicode characters anywhere in this repo - not in code comments, not in markdown, not in commit messages. Specifically:
+
+- Em dashes (--) and en dashes: use a regular hyphen - instead
+- Fancy arrows (-> <- => <= -- > <): use plain > or < or -> or <-
+- Box-drawing characters and other non-ASCII symbols: do not use them
+
 ## File map
 
-See [`FILEMAP.md`](FILEMAP.md) for a per-file breakdown of every source file's purpose and key symbols — faster than reading the source when navigating unfamiliar code.
+See [`FILEMAP.md`](FILEMAP.md) for a per-file breakdown of every source file's purpose and key symbols - faster than reading the source when navigating unfamiliar code.
 
 ## Toolchain
 
@@ -31,24 +39,24 @@ There are no test runners, linters, or build scripts. Validation is done by runn
 
 This codebase targets Roblox's Luau runtime, which differs from standard Lua 5.3/5.4 and generic Luau:
 
-- **No `goto` / `::label::`** — not supported in this Roblox build. Loop `continue` is emulated via `pcall` + signal checks.
-- **No Lua 5.3 bitwise operators** (`~`, `&`, `|`, `<<`, `>>`) — use `bit32.band`, `bit32.bor`, `bit32.bxor`, `bit32.bnot`, `bit32.lshift`, `bit32.rshift`.
-- **No `rawset` on the string metatable** — Roblox locks it. String method calls on string values are handled in `Runtime:tableGet` by falling back to the `string` global.
+- **No `goto` / `::label::`** - not supported in this Roblox build. Loop `continue` is emulated via `pcall` + signal checks.
+- **No Lua 5.3 bitwise operators** (`~`, `&`, `|`, `<<`, `>>`) - use `bit32.band`, `bit32.bor`, `bit32.bxor`, `bit32.bnot`, `bit32.lshift`, `bit32.rshift`.
+- **No `rawset` on the string metatable** - Roblox locks it. String method calls on string values are handled in `Runtime:tableGet` by falling back to the `string` global.
 - **No `getfenv`, `setfenv`, `load`, `loadstring`** (at host level), `debug.*`.
 
 ## Architecture
 
-AegisVM is a Luau-in-Luau interpreter. Source text → tokens → AST → execution. All six modules live as children of the `Compiler` ModuleScript.
+AegisVM is a Luau-in-Luau interpreter. Source text > tokens > AST > execution. All six modules live as children of the `Compiler` ModuleScript.
 
 ### Data flow
 
 ```
 source text
-  → Lexer.tokenize()       → token list  { type, value, line, col }
-  → Parser.parse()         → AST block   { kind="Block", stmts={...} }
-  → Runtime:execBlock()    → side effects / return signal
-  → RuntimeModule.execBlock() (public wrapper, catches return signal)
-  → Compiler.execAST()     → unpacks MultiReturn → true, v1, v2, ...
+  Lexer.tokenize()       -> token list  { type, value, line, col }
+  Parser.parse()         -> AST block   { kind="Block", stmts={...} }
+  Runtime:execBlock()    -> side effects / return signal
+  RuntimeModule.execBlock() (public wrapper, catches return signal)
+  Compiler.execAST()     -> unpacks MultiReturn -> true, v1, v2, ...
 ```
 
 ### Multiple return values
@@ -65,23 +73,23 @@ Each block opens a `Scope.new(parent)`. Variables use two parallel tables: `vari
 
 ### Closure format
 
-Interpreter closures are plain tables: `{ __fn=true, params, hasVarArg, block, closure=<Scope> }`. `closure` is the scope in which the function was **defined** (not called). When passed to native Roblox APIs (e.g. `Signal:Connect`), `callFunctionMulti` wraps them in real Lua `function(...)` adapters so Roblox accepts them.
+Interpreter closures are plain tables: `{ __fn=true, params, hasVarArg, block, closure=Scope }`. `closure` is the scope in which the function was **defined** (not called). When passed to native Roblox APIs (e.g. `Signal:Connect`), `callFunctionMulti` wraps them in real Lua `function(...)` adapters so Roblox accepts them.
 
 ### game proxy
 
 The `game` global inside the sandbox is a proxy table, not the real DataModel. It intercepts:
-- `game:HttpGet` / `game:HttpGetAsync` → `HttpService:GetAsync`
-- `game:GetObjects` → `InsertService:LoadAsset():GetChildren()`
+- `game:HttpGet` / `game:HttpGetAsync` -> `HttpService:GetAsync`
+- `game:GetObjects` -> `InsertService:LoadAsset():GetChildren()`
 
 All other property reads and method calls pass through to `realGame`, with method calls rebinding `self` to `realGame` so Roblox accepts an Instance as the receiver.
 
 ### loadstring
 
-Implemented in StdLib, not forbidden — it re-enters the interpreter pipeline (Lexer → Parser → Runtime) and returns a native Lua function. Each invocation of that function runs in a fresh child scope of the sandbox's global scope.
+Implemented in StdLib, not forbidden - it re-enters the interpreter pipeline (Lexer -> Parser -> Runtime) and returns a native Lua function. Each invocation of that function runs in a fresh child scope of the sandbox's global scope.
 
 ### StdLib population order
 
-`buildCore` → `buildString` → `buildTable` → `buildMath` → `buildBit32` → `buildUtf8` → `buildCoroutine` → `buildTask` → `buildRoblox` → `buildGlobalTable`. `buildRoblox` runs last and overwrites `typeof` with the Roblox-native version.
+`buildCore` -> `buildString` -> `buildTable` -> `buildMath` -> `buildBit32` -> `buildUtf8` -> `buildCoroutine` -> `buildTask` -> `buildRoblox` -> `buildGlobalTable`. `buildRoblox` runs last and overwrites `typeof` with the Roblox-native version.
 
 ## Public API
 
