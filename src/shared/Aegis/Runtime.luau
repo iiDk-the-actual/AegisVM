@@ -40,7 +40,7 @@
 
     No forbidden APIs
     ~~~~~~~~~~~~~~~~~
-    getfenv / setfenv / loadstring / load / debug internals are never used.
+    getfenv / setfenv / loadstring / load internals are never used.
     All evaluation is manual AST traversal.
 ]]
 

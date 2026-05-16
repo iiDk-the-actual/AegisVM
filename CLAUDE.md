@@ -62,7 +62,7 @@ This codebase targets Roblox's Luau runtime, which differs from standard Lua 5.3
 - **No `goto` / `::label::`** - not supported in this Roblox build. Loop `continue` is emulated via `pcall` + signal checks.
 - **No Lua 5.3 bitwise operators** (`~`, `&`, `|`, `<<`, `>>`) - use `bit32.band`, `bit32.bor`, `bit32.bxor`, `bit32.bnot`, `bit32.lshift`, `bit32.rshift`.
 - **No `rawset` on the string metatable** - Roblox locks it. String method calls on string values are handled in `Runtime:tableGet` by falling back to the `string` global.
-- **No `getfenv`, `setfenv`, `load`, `loadstring`** (at host level), `debug.*`.
+- **No `getfenv`, `setfenv`, `load`, `loadstring`** (at host level).
 
 ## Architecture
 

@@ -8,7 +8,6 @@
 
         ✗  getfenv / setfenv
         ✗  loadstring / load
-        ✗  debug library exploits
         ✗  Roblox internals / bytecode injection
         ✗  external executors / unsafe sandbox escapes
 
