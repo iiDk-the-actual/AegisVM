@@ -85,15 +85,15 @@ From `TASKS.md`, in priority order:
 
 | File | Why it matters |
 |------|----------------|
-| `src/shared/Aegis.luau` | Public API. `Sandbox.new`, `compile`, `execAST`. |
-| `src/shared/MainModule.luau` | `return require(script.Aegis)` - enables `require(assetId)`. |
-| `src/shared/Aegis/Runtime.luau` | The interpreter. `tableGet` (depth-limited), `callFunctionMulti`, `execStat`, `execBlock`. Most bugs live here. |
-| `src/shared/Aegis/StdLib.luau` | All sandbox globals. `buildRoblox` takes `runtime`. |
-| `src/shared/Aegis/Scope.luau` | Scope chain. `declareLocal`, `get`, `assign`, `defineGlobal`, `getGlobalScope`. |
-| `src/shared/Aegis/Error.luau` | Error types and control-flow sentinels. Check here first when signals are swallowed. |
-| `src/shared/Aegis/Lexer.luau` | Tokenizer. `readLongBracketBody` scans body only (not closing bracket) for newlines. |
-| `src/shared/Aegis/Constants.luau` | Version string and `CONVERT_BASE_URL`. Bump `VERSION` before a release. |
-| `src/shared/Aegis/Libraries/WebRbxmParser.luau` | Rbxm deserializer. Clone path: `script.Parent.Parent:Clone()`. |
+| `src/server/Aegis.luau` | Public API. `Sandbox.new`, `compile`, `execAST`. |
+| `src/server/MainModule.luau` | `return require(script.Aegis)` - enables `require(assetId)`. |
+| `src/server/Aegis/Runtime.luau` | The interpreter. `tableGet` (depth-limited), `callFunctionMulti`, `execStat`, `execBlock`. Most bugs live here. |
+| `src/server/Aegis/StdLib.luau` | All sandbox globals. `buildRoblox` takes `runtime`. |
+| `src/server/Aegis/Scope.luau` | Scope chain. `declareLocal`, `get`, `assign`, `defineGlobal`, `getGlobalScope`. |
+| `src/server/Aegis/Error.luau` | Error types and control-flow sentinels. Check here first when signals are swallowed. |
+| `src/server/Aegis/Lexer.luau` | Tokenizer. `readLongBracketBody` scans body only (not closing bracket) for newlines. |
+| `src/server/Aegis/Constants.luau` | Version string and `CONVERT_BASE_URL`. Bump `VERSION` before a release. |
+| `src/server/Aegis/Libraries/WebRbxmParser.luau` | Rbxm deserializer. Clone path: `script.Parent.Parent:Clone()`. |
 | `default.project.json` | Rojo sync config. Must stay in sync with any new child modules. |
 | `model.project.json` | Release build config. Nests Aegis under MainModule for `require(assetId)`. |
 | `.github/workflows/release.yml` | CI release pipeline. Builds `.rbxm`, uploads, patches Roblox asset. |

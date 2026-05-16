@@ -4,7 +4,7 @@ Quick reference for every source file. One-line purpose + key symbols.
 
 ---
 
-## `src/shared/Aegis.luau`
+## `src/server/Aegis.luau`
 Public API entry point. Creates sandboxes, drives the compile/exec pipeline.
 
 | Symbol | What it does |
@@ -18,7 +18,7 @@ Public API entry point. Creates sandboxes, drives the compile/exec pipeline.
 
 ---
 
-## `src/shared/Aegis/Lexer.luau`
+## `src/server/Aegis/Lexer.luau`
 Tokeniser. Scans source byte-by-byte into a flat token list.
 
 | Symbol | What it does |
@@ -32,7 +32,7 @@ Tokeniser. Scans source byte-by-byte into a flat token list.
 
 ---
 
-## `src/shared/Aegis/Parser.luau`
+## `src/server/Aegis/Parser.luau`
 Recursive-descent parser with Pratt expression parsing.
 
 | Symbol | What it does |
@@ -48,7 +48,7 @@ Recursive-descent parser with Pratt expression parsing.
 
 ---
 
-## `src/shared/Aegis/Runtime.luau`
+## `src/server/Aegis/Runtime.luau`
 AST-walking interpreter. All evaluation and execution lives here.
 
 | Symbol | What it does |
@@ -72,7 +72,7 @@ AST-walking interpreter. All evaluation and execution lives here.
 
 ---
 
-## `src/shared/Aegis/Scope.luau`
+## `src/server/Aegis/Scope.luau`
 Lexical scope chain.
 
 | Symbol | What it does |
@@ -89,7 +89,7 @@ Lexical scope chain.
 
 ---
 
-## `src/shared/Aegis/Error.luau`
+## `src/server/Aegis/Error.luau`
 Error types and control-flow signal sentinels.
 
 | Symbol | What it does |
@@ -107,7 +107,7 @@ Error types and control-flow signal sentinels.
 
 ---
 
-## `src/shared/Aegis/Constants.luau`
+## `src/server/Aegis/Constants.luau`
 Compile-time static values for AegisVM. Single source of truth for version strings and name constants.
 
 | Key | Value |
@@ -118,7 +118,7 @@ Compile-time static values for AegisVM. Single source of truth for version strin
 
 ---
 
-## `src/shared/Aegis/StdLib.luau`
+## `src/server/Aegis/StdLib.luau`
 Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 
 | Builder function | What it registers |
@@ -143,7 +143,7 @@ Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 
 ---
 
-## `src/shared/Aegis/Libraries/WebRbxmParser.luau`
+## `src/server/Aegis/Libraries/WebRbxmParser.luau`
 Fetches and deserializes JSON-encoded rbxm object trees from the AegisVM convert endpoint. Used internally by the `game:GetObjects` proxy in StdLib. Scripts found in the tree are wrapped in sandboxed AegisVM runners (source stored as an attribute, real source is a template that requires a cloned Aegis module).
 
 `script.Parent.Parent:Clone()` is used to clone the full Aegis module tree into each sandboxed script. The path is Libraries -> Aegis - do not change without updating this clone path.
@@ -151,7 +151,7 @@ Fetches and deserializes JSON-encoded rbxm object trees from the AegisVM convert
 ---
 
 ## `default.project.json`
-Rojo sync configuration. Maps `src/shared/Aegis.luau` as the AegisVM ModuleScript with its submodules as children. Currently places Aegis under `ServerScriptService`.
+Rojo sync configuration. Maps `src/server/Aegis.luau` as the AegisVM ModuleScript with its submodules as children. Currently places Aegis under `ServerScriptService`.
 
 ## `aftman.toml`
 Declares Rojo 7.7.0-rc.1 as the only managed tool.

@@ -188,7 +188,7 @@ Follow these steps in order. Do not skip or reorder them.
 
 ### 1. Bump the version constant
 
-Edit `src/shared/Aegis/Constants.luau` and increment `Constants.VERSION`.
+Edit `src/server/Aegis/Constants.luau` and increment `Constants.VERSION`.
 Use a plain integer string: "1", "2", "3", and so on.
 
 ### 2. Commit the bump

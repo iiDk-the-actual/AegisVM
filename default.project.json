@@ -6,28 +6,28 @@
     "ServerScriptService": {
       "Aegis":
       {
-        "$path": "src/shared/Aegis.luau",
-        "Constants": { "$path": "src/shared/Aegis/Constants.luau" },
-        "Error":   { "$path": "src/shared/Aegis/Error.luau" },
-        "Lexer":   { "$path": "src/shared/Aegis/Lexer.luau" },
-        "Parser":  { "$path": "src/shared/Aegis/Parser.luau" },
-        "Runtime": { "$path": "src/shared/Aegis/Runtime.luau" },
-        "Scope":   { "$path": "src/shared/Aegis/Scope.luau" },
-        "StdLib":  { "$path": "src/shared/Aegis/StdLib.luau" },
+        "$path": "src/server/Aegis.luau",
+        "Constants": { "$path": "src/server/Aegis/Constants.luau" },
+        "Error":   { "$path": "src/server/Aegis/Error.luau" },
+        "Lexer":   { "$path": "src/server/Aegis/Lexer.luau" },
+        "Parser":  { "$path": "src/server/Aegis/Parser.luau" },
+        "Runtime": { "$path": "src/server/Aegis/Runtime.luau" },
+        "Scope":   { "$path": "src/server/Aegis/Scope.luau" },
+        "StdLib":  { "$path": "src/server/Aegis/StdLib.luau" },
         "Libraries": {
-          "$path": "src/shared/Aegis/Libraries.luau",
+          "$path": "src/server/Aegis/Libraries.luau",
           "WebRbxmParser": {
-            "$path": "src/shared/Aegis/Libraries/WebRbxmParser.luau",
+            "$path": "src/server/Aegis/Libraries/WebRbxmParser.luau",
             "ScriptTemplate": {
-              "$path": "src/shared/Aegis/Libraries/WebRbxmParser/ScriptTemplate.server.luau",
+              "$path": "src/server/Aegis/Libraries/WebRbxmParser/ScriptTemplate.server.luau",
               "$properties": { "Enabled": { "Bool": false } }
             },
             "LocalScriptTemplate": {
-              "$path": "src/shared/Aegis/Libraries/WebRbxmParser/LocalScriptTemplate.client.luau",
+              "$path": "src/server/Aegis/Libraries/WebRbxmParser/LocalScriptTemplate.client.luau",
               "$properties": { "Enabled": { "Bool": false } }
             },
             "ModuleScriptTemplate": {
-              "$path": "src/shared/Aegis/Libraries/WebRbxmParser/ModuleScriptTemplate.luau"
+              "$path": "src/server/Aegis/Libraries/WebRbxmParser/ModuleScriptTemplate.luau"
             }
           }
         }

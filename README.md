@@ -68,7 +68,7 @@ The `default.project.json` places the `Aegis` ModuleScript in `ServerScriptServi
 
 ### Manual
 
-Copy `src/shared/Aegis.luau` and the `src/shared/Aegis/` folder into Studio as a ModuleScript named `Aegis` with its children placed inside it.
+Copy `src/server/Aegis.luau` and the `src/server/Aegis/` folder into Studio as a ModuleScript named `Aegis` with its children placed inside it.
 
 ---
 
