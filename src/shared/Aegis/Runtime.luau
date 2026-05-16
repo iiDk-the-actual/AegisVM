@@ -244,7 +244,7 @@ function Runtime:tableGet(tbl, key, line)
         local index = rawget(mt, "__index")
         if index == nil then return nil end
 
-        if type(index) == "function" then
+        if type(index) == "function" or (type(index) == "table" and index.__fn) then
             return singleOf(self:callFunction(index, { tbl, key }))
         elseif type(index) == "table" then
             return self:tableGet(index, key, line)
@@ -311,7 +311,7 @@ function Runtime:tableSet(tbl, key, value, line)
 
     if newindex == nil then
         rawset(tbl, key, value)
-    elseif type(newindex) == "function" then
+    elseif type(newindex) == "function" or (type(newindex) == "table" and newindex.__fn) then
         self:callFunction(newindex, { tbl, key, value })
     elseif type(newindex) == "table" then
         self:tableSet(newindex, key, value, line)
@@ -368,16 +368,16 @@ function Runtime:callFunctionMulti(fn, args, line)
                 local runtime = self
                 wrappedArgs[i] = function(...)
                     local callArgs = { ... }
-                    local ok, result = pcall(function()
+                    local rets = table.pack(pcall(function()
                         local r = runtime:callFunctionMulti(closure, callArgs)
                         return table.unpack(r, 1, r.n)
-                    end)
-                    if not ok then
+                    end))
+                    if not rets[1] then
                         -- Surface interpreter errors as warnings so Roblox
                         -- signal handlers don't silently swallow them.
-                        warn("[Interpreter callback] " .. Error.format(result))
+                        warn("[Interpreter callback] " .. Error.format(rets[2]))
                     else
-                        return result
+                        return table.unpack(rets, 2, rets.n)
                     end
                 end
             end

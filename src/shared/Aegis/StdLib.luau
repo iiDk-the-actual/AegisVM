@@ -252,9 +252,12 @@ local function buildCore(scope, runtime)
         end
         -- Return a chunk function; each call gets its own child scope for locals
         return function(...)
+            local callArgs = { ... }
+            local callN = select("#", ...)
             local chunkScope = Scope.new(scope)
             -- Expose varargs as a local in the chunk scope (standard Lua behaviour)
-            chunkScope:declareLocal("arg", { ... })
+            chunkScope:declareLocal("arg", callArgs)
+            chunkScope:declareLocal("...", { values = callArgs, n = callN })
             local execOk, sig = pcall(function()
                 runtime:execBlock(ast, chunkScope)
             end)
