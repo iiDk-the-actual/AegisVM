@@ -900,7 +900,8 @@ local function buildRoblox(scope, runtime)
                 return function(selfArg, ...)
                     -- When called as gameProxy:method(...) selfArg is gameProxy;
                     -- transparently substitute realGame so Roblox accepts it.
-                    if selfArg == gameProxy then selfArg = realGame end
+                    -- rawequal avoids triggering the proxy's __eq metamethod.
+                    if rawequal(selfArg, gameProxy) then selfArg = realGame end
                     return val(selfArg, ...)
                 end
             end
@@ -913,7 +914,8 @@ local function buildRoblox(scope, runtime)
             return tostring(realGame)
         end,
         __eq = function(_, other)
-            return other == realGame or other == gameProxy
+            -- rawequal avoids re-triggering __eq recursively when other IS gameProxy.
+            return rawequal(other, realGame) or rawequal(other, gameProxy)
         end,
     })
     scope:defineGlobal("game",      gameProxy)
