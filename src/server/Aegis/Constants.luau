@@ -31,7 +31,7 @@ Constants.INTERPRETER_NAME = "AegisVM"
 Constants.DEFAULT_CHUNK_NAME = "loadstring"
 
 -- Base URL for the rbxm conversion service used by WebRbxmParser.
--- Source for this service is available at https://github.com/iiDk-the-actual/convert.iidk.online
-Constants.CONVERT_BASE_URL = "https://convert.iidk.online/rbxm?url="
+-- Source for this service is available at https://github.com/AegisLua/API
+Constants.CONVERT_BASE_URL = "https://api.aegislua.xyz/rbxm?url="
 
 return Constants
