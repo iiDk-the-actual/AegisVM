@@ -748,8 +748,10 @@ function Runtime:execStat(node, scope)
         end
         local flat = flattenExprList(results)
         for i, name in ipairs(node.names) do
-            local isConst = node.attribs[i] == "const"
-            scope:declareLocal(name, flat[i], isConst)
+            local attr    = node.attribs[i]
+            local isConst = attr == "const"
+            local isClose = attr == "close"
+            scope:declareLocal(name, flat[i], isConst, isClose)
         end
         return
 
@@ -1026,39 +1028,87 @@ end
 
 -- ─── Block execution (with goto support) ─────────────────────────────
 
+-- Run __close handlers for all to-be-closed variables in `scope`.
+-- closeErr is the error object if the block exited via a runtime error,
+-- or nil for normal exit and control-flow signals (break/continue/return/goto).
+-- Handlers are called in reverse declaration order; errors inside them are
+-- swallowed so that close errors do not mask the original signal.
+function Runtime:runCloseHandlers(scope, closeErr)
+    local list = scope.closeList
+    for j = #list, 1, -1 do
+        local name = list[j]
+        local val  = scope.variables[name]
+        if type(val) == "table" then
+            local mt = getmetatable(val)
+            if mt then
+                local closeMM = rawget(mt, "__close")
+                if closeMM ~= nil then
+                    pcall(function()
+                        self:callFunction(closeMM, { val, closeErr })
+                    end)
+                end
+            end
+        end
+    end
+end
+
 function Runtime:execBlock(block, scope)
     local stmts = block.stmts
     local i     = 1
 
-    while i <= #stmts do
-        local stat = stmts[i]
+    -- Outer pcall captures any signal that escapes the statement loop so
+    -- that to-be-closed variables can be finalized before re-raising.
+    local blockOk, blockSig = pcall(function()
+        while i <= #stmts do
+            local stat = stmts[i]
 
-        local ok, sig = pcall(function()
-            self:execStat(stat, scope)
-        end)
+            local ok, sig = pcall(function()
+                self:execStat(stat, scope)
+            end)
 
-        if not ok then
-            -- Goto: scan forward / backward for label in this block
-            if Error.isGoto(sig) then
-                local label = sig.label
-                local found = false
-                for j, s in ipairs(stmts) do
-                    if s.kind == "LabelStatement" and s.name == label then
-                        i = j + 1
-                        found = true
-                        break
+            if not ok then
+                -- Goto: scan forward / backward for label in this block
+                if Error.isGoto(sig) then
+                    local label = sig.label
+                    local found = false
+                    for j, s in ipairs(stmts) do
+                        if s.kind == "LabelStatement" and s.name == label then
+                            i = j + 1
+                            found = true
+                            break
+                        end
                     end
+                    if not found then
+                        error(sig, 0)   -- propagate to outer block
+                    end
+                    -- continue loop from new i
+                else
+                    error(sig, 0)   -- re-raise all other signals / errors
                 end
-                if not found then
-                    error(sig, 0)   -- propagate to outer block
-                end
-                -- continue loop from new i
             else
-                error(sig, 0)   -- re-raise all other signals / errors
+                i = i + 1
             end
-        else
-            i = i + 1
         end
+    end)
+
+    -- Run to-be-closed variable handlers (LIFO) if any were declared in
+    -- this scope. Most blocks have none, so the check is cheap.
+    if #scope.closeList > 0 then
+        local closeErr = nil
+        if not blockOk then
+            -- Control-flow signals are not errors; only real RuntimeErrors get
+            -- passed to __close as the second argument.
+            local isSignal = Error.isBreak(blockSig)    or Error.isContinue(blockSig)
+                          or Error.isReturn(blockSig)   or Error.isGoto(blockSig)
+            if not isSignal then
+                closeErr = blockSig
+            end
+        end
+        self:runCloseHandlers(scope, closeErr)
+    end
+
+    if not blockOk then
+        error(blockSig, 0)
     end
 end
 

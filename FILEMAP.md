@@ -68,7 +68,8 @@ AST-walking interpreter. All evaluation and execution lives here.
 | `Runtime:makeClosure(bodyNode, scope)` | Returns `{__fn=true, params, hasVarArg, block, closure=scope}` |
 | `Runtime:evalArgList(argNodes, scope)` | Evaluates arg nodes, flattens last multi-return |
 | `Runtime:execStat(node, scope)` | Dispatches all statement kinds |
-| `Runtime:execBlock(block, scope)` | Iterates stmts; handles goto by label scan |
+| `Runtime:execBlock(block, scope)` | Iterates stmts; handles goto by label scan; runs `__close` handlers on exit |
+| `Runtime:runCloseHandlers(scope, closeErr)` | Calls `__close(val, err)` on all `<close>` vars in scope (LIFO) |
 | `RuntimeModule.execBlock(runtime, block, scope)` | Public wrapper; catches return signal; returns `ok, MultiReturn` |
 | `flattenExprList(results)` | Expands last item's multi-return; truncates all prior to 1 |
 | `multiRet(...)` | Packs values into `{__multi=true, n, [1]...}` |
@@ -83,13 +84,13 @@ Lexical scope chain.
 | `Scope.global(name)` | Creates root scope (parent = nil) |
 | `Scope.new(parent, name)` | Creates child scope |
 | `scope:child(name)` | Shorthand for `Scope.new(self, name)` |
-| `scope:declareLocal(name, value, isConst?)` | Binds in THIS scope; marks const if isConst=true |
+| `scope:declareLocal(name, value, isConst?, isClose?)` | Binds in THIS scope; marks const/close if flags set |
 | `scope:get(name)` | Walks chain outward; returns nil if not found |
 | `scope:set(name, value)` | Updates existing binding; raises RuntimeError if var is const |
 | `scope:assign(name, value)` | Updates existing binding or creates at global root |
 | `scope:defineGlobal(name, value)` | Writes directly to root scope |
 | `scope:findOwner(name)` | Returns the scope that declares `name`, or nil |
-| `variables` / `declared` / `consts` | Three parallel tables: value, existence flag, const flag |
+| `variables` / `declared` / `consts` / `closeList` | Value, existence flag, const flag, ordered close-var names |
 
 ---
 

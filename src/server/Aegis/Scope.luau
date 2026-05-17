@@ -29,6 +29,14 @@
     Variables declared with `local x <const> = value` are tracked in a
     separate `consts` boolean table.  Any attempt to assign to a const
     variable raises a RuntimeError.
+
+    To-be-closed variables
+    ----------------------
+    Variables declared with `local x <close> = value` are tracked in a
+    `closeList` array (in declaration order).  When the owning block
+    exits (normal, break, continue, return, or error), the Runtime
+    iterates `closeList` in reverse and calls `__close(value, err)` on
+    each value whose metatable provides a `__close` metamethod.
 ]]
 
 local Error = require(script.Parent.Error)
@@ -48,6 +56,7 @@ function Scope.new(parent, name)
         variables = {},   -- [varName] = value  (value may be nil)
         declared  = {},   -- [varName] = true   (existence flag)
         consts    = {},   -- [varName] = true   (const flag)
+        closeList = {},   -- ordered list of names declared with <close>
     }, Scope)
 end
 
@@ -66,11 +75,15 @@ end
 -- Declare a new local variable in THIS scope only.
 -- Shadows any same-named variable in ancestor scopes.
 -- isConst: if true, the variable cannot be reassigned after declaration.
-function Scope:declareLocal(name, value, isConst)
+-- isClose: if true, the variable is to-be-closed; appended to closeList.
+function Scope:declareLocal(name, value, isConst, isClose)
     self.declared[name]  = true
     self.variables[name] = value
     if isConst then
         self.consts[name] = true
+    end
+    if isClose then
+        self.closeList[#self.closeList + 1] = name
     end
 end
 
