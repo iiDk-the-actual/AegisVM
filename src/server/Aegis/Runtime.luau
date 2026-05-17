@@ -84,24 +84,30 @@ local function unpackMulti(v)
 end
 
 -- Build a flat argument list from an expression list (last item expanded)
-local function flattenExprList(results)
-    -- results[i] = value or MultiReturn table from evaluating each expr
+-- count must be passed explicitly: results[i]=nil is a no-op in Lua, so
+-- #results is unreliable when any non-last expression evaluates to nil.
+local function flattenExprList(results, count)
     local out = {}
-    for i = 1, #results do
+    local n   = 0
+    for i = 1, count do
         local v = results[i]
-        if i < #results then
-            out[#out + 1] = singleOf(v)
+        if i < count then
+            n = n + 1
+            out[n] = singleOf(v)
         else
-            -- Last: expand
+            -- Last expression expands multiple returns.
             if isMulti(v) then
                 for j = 1, v.n do
-                    out[#out + 1] = v[j]
+                    n = n + 1
+                    out[n] = v[j]
                 end
             else
-                out[#out + 1] = v
+                n = n + 1
+                out[n] = v
             end
         end
     end
+    out.n = n  -- reliable count; use this instead of # on the returned table
     return out
 end
 
@@ -129,6 +135,23 @@ local function tryNativeBinop(op, l, r)
     elseif op == ">=" then return pcall(function() return l >= r end)
     end
     return false, nil
+end
+
+-- Extract a human-readable name from a function declaration name expression.
+-- Returns a string like "foo", "obj.foo", or "obj:method", or nil.
+local function nameExprToString(nameExpr)
+    if nameExpr.kind == "Identifier" then
+        return nameExpr.name
+    elseif nameExpr.kind == "FieldExpr" then
+        local parent = nameExprToString(nameExpr.table)
+        if parent then return parent .. "." .. nameExpr.field end
+        return nameExpr.field
+    elseif nameExpr.kind == "MethodName" then
+        local parent = nameExprToString(nameExpr.table)
+        if parent then return parent .. ":" .. nameExpr.method end
+        return nameExpr.method
+    end
+    return nil
 end
 
 -- ─── Metatable helpers ────────────────────────────────────────────────
@@ -290,6 +313,7 @@ function Runtime:evalMulti(node, scope)
         local fn   = self:tableGet(obj, node.method, node.line)
         local args = self:evalArgList(node.args, scope)
         table.insert(args, 1, obj)   -- prepend self
+        args.n = args.n + 1          -- keep .n in sync with the inserted element
         return self:callFunctionMulti(fn, args, node.line)
     end
 
@@ -330,10 +354,11 @@ function Runtime:tableGet(tbl, key, line, depth)
         end
         return nil
 
-    -- ── Roblox Instance / userdata ────────────────────────────────────
-    -- All Roblox instances are userdata. We let Roblox's own __index
-    -- handle property and method look-ups; pcall absorbs invalid access.
-    elseif t == "userdata" then
+    -- ── Roblox Instance / userdata / vector ──────────────────────────────
+    -- All Roblox instances are userdata; Vector3/similar are "vector" in newer
+    -- Roblox builds. Let Roblox's own __index handle property and method
+    -- look-ups; pcall absorbs invalid access.
+    elseif t == "userdata" or t == "vector" then
         local ok, val = pcall(function() return tbl[key] end)
         return ok and val or nil
 
@@ -361,10 +386,10 @@ end
 function Runtime:tableSet(tbl, key, value, line)
     local t = type(tbl)
 
-    -- ── Roblox Instance / userdata ────────────────────────────────────
+    -- ── Roblox Instance / userdata / vector ──────────────────────────────
     -- Assign to properties directly; Roblox raises its own errors for
     -- read-only or nonexistent members.
-    if t == "userdata" then
+    if t == "userdata" or t == "vector" then
         local ok, err = pcall(function() tbl[key] = value end)
         if not ok then
             self:runtimeError(tostring(err), line)
@@ -402,16 +427,17 @@ end
 -- ─── Argument list evaluator ─────────────────────────────────────────
 
 function Runtime:evalArgList(argNodes, scope)
+    local count   = #argNodes
     local results = {}
-    for i, argNode in ipairs(argNodes) do
-        results[i] = self:evalMulti(argNode, scope)
+    for i = 1, count do
+        results[i] = self:evalMulti(argNodes[i], scope)
     end
-    return flattenExprList(results)
+    return flattenExprList(results, count)
 end
 
 -- ─── Closure factory ─────────────────────────────────────────────────
 
-function Runtime:makeClosure(bodyNode, scope)
+function Runtime:makeClosure(bodyNode, scope, name)
     return {
         __fn      = true,
         params    = bodyNode.params,
@@ -419,6 +445,7 @@ function Runtime:makeClosure(bodyNode, scope)
         block     = bodyNode.block,
         closure   = scope,            -- captured lexical scope
         sourceName = self.sourceName, -- chunk where this closure was defined
+        name      = name,             -- display name for stack traces (may be nil)
     }
 end
 
@@ -436,34 +463,48 @@ function Runtime:callFunctionMulti(fn, args, line)
         -- Any interpreter closure passed as an argument (e.g. to Signal:Connect,
         -- table.sort, pcall, etc.) must be wrapped in a real Lua function.
         -- Otherwise Roblox rejects the table with "Passed value is not a function".
+        local argN       = args.n or #args
         local wrappedArgs = args
-        for i = 1, #args do
+        for i = 1, argN do
             if isClosure(args[i]) then
                 -- Lazy-copy args only on first closure found
                 if wrappedArgs == args then
-                    wrappedArgs = {}
-                    for j = 1, #args do wrappedArgs[j] = args[j] end
+                    wrappedArgs = { n = argN }
+                    for j = 1, argN do wrappedArgs[j] = args[j] end
                 end
                 local closure = args[i]
                 local runtime = self
                 wrappedArgs[i] = function(...)
-                    local callArgs = { ... }
+                    local callArgs = table.pack(...)
                     local rets = table.pack(pcall(function()
                         local r = runtime:callFunctionMulti(closure, callArgs)
                         return table.unpack(r, 1, r.n)
                     end))
                     if not rets[1] then
-                        -- Surface interpreter errors as warnings so Roblox
-                        -- signal handlers don't silently swallow them.
-                        warn("[Interpreter callback] " .. Error.format(rets[2]))
-                    else
-                        return table.unpack(rets, 2, rets.n)
+                        local err = rets[2]
+                        -- Control-flow signals (break/continue/return/goto) must
+                        -- not escape a native callback boundary; swallow silently.
+                        if Error.isSignal(err) then return end
+                        -- Real errors are re-thrown so that guest pcall/xpcall
+                        -- can catch them. For fire-and-forget callbacks (e.g.
+                        -- Signal:Connect) Roblox will surface the error itself.
+                        error(err, 0)
                     end
+                    return table.unpack(rets, 2, rets.n)
                 end
             end
         end
-        local results = table.pack(fn(table.unpack(wrappedArgs, 1, #wrappedArgs)))
+        local rawResults = table.pack(pcall(fn, table.unpack(wrappedArgs, 1, wrappedArgs.n or argN)))
+        if not rawResults[1] then
+            local err = rawResults[2]
+            -- Re-raise control-flow signals thrown by wrapped closure callbacks
+            if Error.isSignal(err) then error(err, 0) end
+            self:runtimeError(tostring(err), line)
+        end
+        local results = {}
         results.__multi = true
+        results.n = rawResults.n - 1
+        for i = 2, rawResults.n do results[i - 1] = rawResults[i] end
         return results
     end
 
@@ -486,7 +527,7 @@ function Runtime:callFunctionMulti(fn, args, line)
         if fn.hasVarArg then
             local vaValues = {}
             local vaCount  = 0
-            for i = #fn.params + 1, #args do
+            for i = #fn.params + 1, args.n or #args do
                 vaCount = vaCount + 1
                 vaValues[vaCount] = args[i]
             end
@@ -496,7 +537,7 @@ function Runtime:callFunctionMulti(fn, args, line)
         -- Push a call stack frame so debug.traceback shows guest locations.
         -- `line` is the call site line; sourceName is from the closure's definition.
         local frameIdx = #self.callStack + 1
-        self.callStack[frameIdx] = { chunkName = fn.sourceName or "?", line = line or 0 }
+        self.callStack[frameIdx] = { chunkName = fn.sourceName or "?", line = line or 0, fnName = fn.name }
 
         -- Execute body; catch return signals
         local ok, sig = pcall(function()
@@ -524,13 +565,13 @@ function Runtime:callFunctionMulti(fn, args, line)
     -- __call metamethod (tables only; getMetamethod uses rawget)
     local callMM = getMetamethod(fn, "__call")
     if callMM then
-        local newArgs = { fn, table.unpack(args, 1, #args) }
+        local newArgs = { fn, table.unpack(args, 1, args.n or #args) }
         return self:callFunctionMulti(callMM, newArgs, line)
     end
 
-    -- Roblox userdata that is itself callable (rare, but handle gracefully)
-    if type(fn) == "userdata" then
-        local results = table.pack(pcall(fn, table.unpack(args, 1, #args)))
+    -- Roblox userdata/vector that is itself callable (rare, but handle gracefully)
+    if type(fn) == "userdata" or type(fn) == "vector" then
+        local results = table.pack(pcall(fn, table.unpack(args, 1, args.n or #args)))
         if results[1] then
             -- results[1] = true (ok), rest are return values
             local out = {}
@@ -564,7 +605,7 @@ function Runtime:evalUnary(node, scope)
         if type(v) == "number" then return -v end
         local r, ok = callMeta(self, v, "__unm")
         if ok then return singleOf(r) end
-        if type(v) == "userdata" then
+        if type(v) == "userdata" or type(v) == "vector" then
             local nok, nres = pcall(function() return -v end)
             if nok then return nres end
         end
@@ -663,7 +704,7 @@ function Runtime:evalBinary(node, scope)
         if ok then return singleOf(res) end
         -- Roblox userdata (Vector3, CFrame, etc.) use locked native metamethods
         -- invisible to getmetatable; fall back to raw Lua operators via pcall.
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop(op, l, r)
             if nok then return nres end
         end
@@ -682,7 +723,7 @@ function Runtime:evalBinary(node, scope)
         local res, ok = callMeta(self, l, "__concat", r)
         if not ok then res, ok = callMeta(self, r, "__concat", l) end
         if ok then return singleOf(res) end
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop("..", l, r)
             if nok then return nres end
         end
@@ -716,7 +757,7 @@ function Runtime:evalBinary(node, scope)
         if type(l) == "string" and type(r) == "string" then return l < r end
         local res, ok = callMeta(self, l, "__lt", r)
         if ok then return isTruthy(singleOf(res)) end
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop("<", l, r)
             if nok then return nres end
         end
@@ -729,7 +770,7 @@ function Runtime:evalBinary(node, scope)
         -- Luau: a > b equivalent to b < a
         local res, ok = callMeta(self, r, "__lt", l)
         if ok then return isTruthy(singleOf(res)) end
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop(">", l, r)
             if nok then return nres end
         end
@@ -744,7 +785,7 @@ function Runtime:evalBinary(node, scope)
         -- Fallback: a <= b equivalent to not (b < a)
         res, ok = callMeta(self, r, "__lt", l)
         if ok then return not isTruthy(singleOf(res)) end
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop("<=", l, r)
             if nok then return nres end
         end
@@ -758,7 +799,7 @@ function Runtime:evalBinary(node, scope)
         if ok then return isTruthy(singleOf(res)) end
         res, ok = callMeta(self, l, "__lt", r)
         if ok then return not isTruthy(singleOf(res)) end
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop(">=", l, r)
             if nok then return nres end
         end
@@ -816,11 +857,12 @@ function Runtime:execStat(node, scope)
 
     -- ── Local declaration ─────────────────────────────────────────
     elseif kind == "LocalDeclaration" then
+        local count   = #node.values
         local results = {}
-        for i, valNode in ipairs(node.values) do
-            results[i] = self:evalMulti(valNode, scope)
+        for i = 1, count do
+            results[i] = self:evalMulti(node.values[i], scope)
         end
-        local flat = flattenExprList(results)
+        local flat = flattenExprList(results, count)
         for i, name in ipairs(node.names) do
             local attr    = node.attribs[i]
             local isConst = attr == "const"
@@ -831,11 +873,12 @@ function Runtime:execStat(node, scope)
 
     -- ── Assignment ────────────────────────────────────────────────
     elseif kind == "Assignment" then
+        local count   = #node.values
         local results = {}
-        for i, valNode in ipairs(node.values) do
-            results[i] = self:evalMulti(valNode, scope)
+        for i = 1, count do
+            results[i] = self:evalMulti(node.values[i], scope)
         end
-        local flat = flattenExprList(results)
+        local flat = flattenExprList(results, count)
 
         for i, target in ipairs(node.targets) do
             local val = flat[i]
@@ -929,11 +972,12 @@ function Runtime:execStat(node, scope)
     -- ── Generic for ───────────────────────────────────────────────
     elseif kind == "GenericFor" then
         -- Evaluate iterator expressions
+        local count   = #node.iters
         local results = {}
-        for i, iterNode in ipairs(node.iters) do
-            results[i] = self:evalMulti(iterNode, scope)
+        for i = 1, count do
+            results[i] = self:evalMulti(node.iters[i], scope)
         end
-        local flat = flattenExprList(results)
+        local flat = flattenExprList(results, count)
 
         -- Luau __iter metamethod: if a single table is passed as the
         -- iterator and it has __iter in its metatable, call __iter(table)
@@ -1006,7 +1050,7 @@ function Runtime:execStat(node, scope)
 
     -- ── Function declaration (statement form) ─────────────────────
     elseif kind == "FunctionDeclaration" then
-        local closure = self:makeClosure(node.body, scope)
+        local closure = self:makeClosure(node.body, scope, nameExprToString(node.name))
         self:assignNameExpr(node.name, closure, scope, node.isMethod)
         return
 
@@ -1014,18 +1058,19 @@ function Runtime:execStat(node, scope)
     elseif kind == "LocalFunction" then
         -- The function name is visible inside itself (recursive)
         scope:declareLocal(node.name, nil)
-        local closure = self:makeClosure(node.body, scope)
+        local closure = self:makeClosure(node.body, scope, node.name)
         scope:declareLocal(node.name, closure)
         return
 
     -- ── Return ────────────────────────────────────────────────────
     elseif kind == "ReturnStatement" then
+        local count   = #node.values
         local results = {}
-        for i, valNode in ipairs(node.values) do
-            results[i] = self:evalMulti(valNode, scope)
+        for i = 1, count do
+            results[i] = self:evalMulti(node.values[i], scope)
         end
-        local flat = flattenExprList(results)
-        error(Error.returnSignal(flat, #flat), 0)
+        local flat = flattenExprList(results, count)
+        error(Error.returnSignal(flat, flat.n), 0)
 
     -- ── Break / Continue ──────────────────────────────────────────
     elseif kind == "BreakStatement" then
@@ -1083,7 +1128,7 @@ function Runtime:execStat(node, scope)
 
         -- Methods: each becomes a closure bound to the class table.
         for _, method in ipairs(node.methods) do
-            classTable[method.name] = self:makeClosure(method.body, scope)
+            classTable[method.name] = self:makeClosure(method.body, scope, method.name)
         end
 
         return
@@ -1280,7 +1325,7 @@ function Runtime:evalBinaryValues(op, l, r, line)
         local res, ok = callMeta(self, l, mmName, r)
         if not ok then res, ok = callMeta(self, r, mmName, l) end
         if ok then return singleOf(res) end
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop(op, l, r)
             if nok then return nres end
         end
@@ -1298,7 +1343,7 @@ function Runtime:evalBinaryValues(op, l, r, line)
         local res, ok = callMeta(self, l, "__concat", r)
         if not ok then res, ok = callMeta(self, r, "__concat", l) end
         if ok then return singleOf(res) end
-        if type(l) == "userdata" or type(r) == "userdata" then
+        if type(l) == "userdata" or type(r) == "userdata" or type(l) == "vector" or type(r) == "vector" then
             local nok, nres = tryNativeBinop("..", l, r)
             if nok then return nres end
         end
@@ -1311,7 +1356,38 @@ end
 -- ─── Error helper ─────────────────────────────────────────────────────
 
 function Runtime:runtimeError(msg, line)
-    error(Error.runtime(msg, line), 0)
+    local err = Error.runtime(msg, line)
+    local N = #self.callStack
+    if N == 0 then
+        -- Error in main chunk
+        if line and line > 0 then
+            err:pushFrame(string.format("    Line %d - in main chunk", line))
+        end
+    else
+        -- Innermost frame: where the error actually happened
+        local innerName = self.callStack[N].fnName
+        if line and line > 0 then
+            if innerName then
+                err:pushFrame(string.format("    Line %d - in function '%s'", line, innerName))
+            else
+                err:pushFrame(string.format("    Line %d - in function '?'", line))
+            end
+        end
+        -- Intermediate frames (innermost call site down to second frame)
+        for i = N, 2, -1 do
+            local callerName = self.callStack[i - 1].fnName
+            if callerName then
+                err:pushFrame(string.format("    Line %d - in function '%s'", self.callStack[i].line, callerName))
+            else
+                err:pushFrame(string.format("    Line %d - in function '?'", self.callStack[i].line))
+            end
+        end
+        -- Outermost: main chunk called into the first function
+        if self.callStack[1].line > 0 then
+            err:pushFrame(string.format("    Line %d - in main chunk", self.callStack[1].line))
+        end
+    end
+    error(err, 0)
 end
 
 -- ─── Public interface ─────────────────────────────────────────────────
