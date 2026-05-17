@@ -39,14 +39,6 @@
 
     "Workspace": {
       "ThumbnailCamera": { "$path": "src/ThumbnailCamera.rbxmx" }
-    },
-
-    "StarterPlayer": {
-      "StarterPlayerScripts": {
-        "Client": {
-          "$path": "src/client"
-        }
-      }
     }
   }
 }
