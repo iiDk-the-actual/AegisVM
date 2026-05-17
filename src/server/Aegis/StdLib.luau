@@ -649,11 +649,18 @@ local function buildCoroutine(scope, runtime)
     local function wrapFn(fn)
         if type(fn) == "table" and rawget(fn, "__fn") then
             return function(...)
-                local args = { ... }
-                local mr = runtime:callFunctionMulti(fn, args)
+                local args = table.pack(...)
+                local ok, res = pcall(runtime.callFunctionMulti, runtime, fn, args)
+                if not ok then
+                    -- Control-flow signals must not escape the coroutine boundary.
+                    if Error.isSignal(res) then return end
+                    -- Format RuntimeErrors into strings so coroutine.resume
+                    -- returns a readable message rather than a raw error object.
+                    error(Error.format(res), 0)
+                end
                 local out = {}
-                for i = 1, mr.n do out[i] = mr[i] end
-                return table.unpack(out, 1, mr.n)
+                for i = 1, res.n do out[i] = res[i] end
+                return table.unpack(out, 1, res.n)
             end
         end
         return fn
@@ -679,8 +686,12 @@ local function buildTask(scope, runtime)
     local function wrapFn(fn)
         if type(fn) == "table" and rawget(fn, "__fn") then
             return function(...)
-                local args = { ... }
-                runtime:callFunctionMulti(fn, args)
+                local args = table.pack(...)
+                local ok, res = pcall(runtime.callFunctionMulti, runtime, fn, args)
+                if not ok then
+                    if Error.isSignal(res) then return end
+                    error(Error.format(res), 0)
+                end
             end
         end
         return fn

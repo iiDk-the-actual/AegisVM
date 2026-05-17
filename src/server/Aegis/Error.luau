@@ -20,6 +20,8 @@
     in the engine.
 ]]
 
+local Constants = require(script.Parent.Constants)
+
 local Error = {}
 Error.__index = Error
 
@@ -55,6 +57,12 @@ function Error.new(category, message, line, column)
 end
 
 function Error:__tostring()
+    local v = Constants.VERBOSITY
+    -- SILENT and BRIEF: bare message text only
+    if v <= Constants.VERBOSITY_BRIEF then
+        return self.message
+    end
+    -- STANDARD and above: include [Category:line] prefix
     local loc = ""
     if self.line > 0 then
         loc = string.format(":%d", self.line)
@@ -62,7 +70,12 @@ function Error:__tostring()
             loc = loc .. string.format(":%d", self.column)
         end
     end
-    return string.format("[%s%s] %s", self.category, loc, self.message)
+    local base = string.format("[%s%s] %s", self.category, loc, self.message)
+    -- VERBOSE: append call-stack trace
+    if v >= Constants.VERBOSITY_VERBOSE and #self.stackTrace > 0 then
+        base = base .. "\nstack traceback:\n" .. table.concat(self.stackTrace, "\n")
+    end
+    return base
 end
 
 function Error.lexer(msg, line, col)
