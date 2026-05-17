@@ -79,7 +79,7 @@ local function buildCore(scope, runtime)
                         return tostring(ts(v))
                     end
                     -- Interpreter closure __tostring
-                    if type(ts) == "table" and ts.__fn then
+                    if type(ts) == "table" and rawget(ts, "__fn") then
                         local result = runtime:callFunction(ts, { v })
                         return tostring(result)
                     end
@@ -143,7 +143,7 @@ local function buildCore(scope, runtime)
     local function callGuest(fn, args)
         if type(fn) == "function" then
             return table.pack(fn(table.unpack(args, 1, #args)))
-        elseif type(fn) == "table" and fn.__fn then
+        elseif type(fn) == "table" and rawget(fn, "__fn") then
             local mr = runtime:callFunctionMulti(fn, args)
             local out = {}
             for i = 1, mr.n do out[i] = mr[i] end
@@ -201,7 +201,7 @@ local function buildCore(scope, runtime)
         local handlerOk, handlerResult = pcall(function()
             if type(handler) == "function" then
                 return handler(msg)
-            elseif type(handler) == "table" and handler.__fn then
+            elseif type(handler) == "table" and rawget(handler, "__fn") then
                 return runtime:callFunction(handler, { msg })
             end
         end)
@@ -325,7 +325,7 @@ local function buildCore(scope, runtime)
         local source
         if type(chunk) == "string" then
             source = chunk
-        elseif type(chunk) == "function" or (type(chunk) == "table" and chunk.__fn) then
+        elseif type(chunk) == "function" or (type(chunk) == "table" and rawget(chunk, "__fn")) then
             local pieces = {}
             while true do
                 local piece
@@ -393,7 +393,7 @@ local function buildCore(scope, runtime)
         if fnOrLevel == nil or type(fnOrLevel) == "number" then
             return scope:get("_G")
         end
-        if type(fnOrLevel) == "table" and fnOrLevel.__fn then
+        if type(fnOrLevel) == "table" and rawget(fnOrLevel, "__fn") then
             return scope:get("_G")
         end
         return nil
@@ -406,7 +406,7 @@ local function buildCore(scope, runtime)
     scope:defineGlobal("setfenv", native(function(fnOrLevel, env)
         if type(env) ~= "table" then return nil end
         local isLevel   = type(fnOrLevel) == "number"
-        local isClosure = type(fnOrLevel) == "table" and fnOrLevel.__fn
+        local isClosure = type(fnOrLevel) == "table" and rawget(fnOrLevel, "__fn")
         if fnOrLevel == nil or isLevel or isClosure then
             local globalScope = scope:getGlobalScope()
             for k, v in pairs(env) do
@@ -502,7 +502,7 @@ end
 local function buildTable(scope, runtime)
     -- Call fn (native or interpreter closure) and return the first result.
     local function callComp(fn, a, b)
-        if type(fn) == "table" and fn.__fn then
+        if type(fn) == "table" and rawget(fn, "__fn") then
             local mr = runtime:callFunctionMulti(fn, {a, b})
             local r = mr[1]
             return r ~= nil and r ~= false
@@ -518,7 +518,7 @@ local function buildTable(scope, runtime)
         sort    = function(t, comp)
             if comp == nil then
                 table.sort(t)
-            elseif type(comp) == "table" and comp.__fn then
+            elseif type(comp) == "table" and rawget(comp, "__fn") then
                 table.sort(t, function(a, b) return callComp(comp, a, b) end)
             else
                 table.sort(t, comp)
@@ -551,7 +551,7 @@ local function buildTable(scope, runtime)
         foreach = function(t, f)
             for k, v in pairs(t) do
                 local r
-                if type(f) == "table" and f.__fn then
+                if type(f) == "table" and rawget(f, "__fn") then
                     local mr = runtime:callFunctionMulti(f, {k, v})
                     r = mr[1]
                 else
@@ -563,7 +563,7 @@ local function buildTable(scope, runtime)
         foreachi = function(t, f)
             for i, v in ipairs(t) do
                 local r
-                if type(f) == "table" and f.__fn then
+                if type(f) == "table" and rawget(f, "__fn") then
                     local mr = runtime:callFunctionMulti(f, {i, v})
                     r = mr[1]
                 else
@@ -647,7 +647,7 @@ local function buildCoroutine(scope, runtime)
     -- closures so the Lua coroutine machinery accepts them.  Yields issued
     -- from within the closure correctly propagate through the native layer.
     local function wrapFn(fn)
-        if type(fn) == "table" and fn.__fn then
+        if type(fn) == "table" and rawget(fn, "__fn") then
             return function(...)
                 local args = { ... }
                 local mr = runtime:callFunctionMulti(fn, args)
@@ -677,7 +677,7 @@ local function buildTask(scope, runtime)
     -- task.spawn/defer/delay require real Lua functions.  Wrap interpreter
     -- closures so the Roblox scheduler accepts them.
     local function wrapFn(fn)
-        if type(fn) == "table" and fn.__fn then
+        if type(fn) == "table" and rawget(fn, "__fn") then
             return function(...)
                 local args = { ... }
                 runtime:callFunctionMulti(fn, args)
@@ -817,7 +817,7 @@ local function buildDebug(scope, runtime)
     -- (the closure's global environment in AegisVM terms). Returns nil for
     -- native functions so host environments are never exposed.
     lib.getfenv = function(fn)
-        if type(fn) == "table" and fn.__fn then
+        if type(fn) == "table" and rawget(fn, "__fn") then
             return scope:get("_G")
         end
         return nil
@@ -828,7 +828,7 @@ local function buildDebug(scope, runtime)
     -- replacing a function's global environment. Returns fn on success, nil if
     -- fn is not an interpreter closure or env is not a table.
     lib.setfenv = function(fn, env)
-        if type(fn) == "table" and fn.__fn and type(env) == "table" then
+        if type(fn) == "table" and rawget(fn, "__fn") and type(env) == "table" then
             local globalScope = scope:getGlobalScope()
             for k, v in pairs(env) do
                 globalScope:declareLocal(k, v)
@@ -968,7 +968,7 @@ local function buildRoblox(scope, runtime)
     -- Deprecated global schedulers (still common in the wild).
     -- spawn and delay receive a callback, so wrap interpreter closures.
     local function wrapFn(fn)
-        if type(fn) == "table" and fn.__fn then
+        if type(fn) == "table" and rawget(fn, "__fn") then
             return function(...)
                 local args = { ... }
                 runtime:callFunctionMulti(fn, args)

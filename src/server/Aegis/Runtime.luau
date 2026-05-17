@@ -55,8 +55,19 @@ local function multiRet(...)
     return t
 end
 
+-- rawget-based tag checks: use rawget so that tables with __index metamethods
+-- (such as the game proxy) never trigger Roblox property lookups when AegisVM
+-- inspects its own internal type tags (__multi, __fn).
+local function isMulti(v)
+    return type(v) == "table" and rawget(v, "__multi") == true
+end
+
+local function isClosure(v)
+    return type(v) == "table" and rawget(v, "__fn") == true
+end
+
 local function singleOf(v)
-    if type(v) == "table" and v.__multi then
+    if isMulti(v) then
         return v[1]
     end
     return v
@@ -64,7 +75,7 @@ end
 
 -- Unwrap a potential MultiReturn into a plain array of values
 local function unpackMulti(v)
-    if type(v) == "table" and v.__multi then
+    if isMulti(v) then
         local out = {}
         for i = 1, v.n do out[i] = v[i] end
         return out, v.n
@@ -82,7 +93,7 @@ local function flattenExprList(results)
             out[#out + 1] = singleOf(v)
         else
             -- Last: expand
-            if type(v) == "table" and v.__multi then
+            if isMulti(v) then
                 for j = 1, v.n do
                     out[#out + 1] = v[j]
                 end
@@ -163,7 +174,7 @@ function Runtime:evalMulti(node, scope)
                 local s
                 if type(sandboxTostr) == "function" then
                     s = sandboxTostr(val)
-                elseif type(sandboxTostr) == "table" and sandboxTostr.__fn then
+                elseif isClosure(sandboxTostr) then
                     s = self:callFunction(sandboxTostr, { val })
                 else
                     s = tostring(val)
@@ -291,7 +302,7 @@ function Runtime:tableGet(tbl, key, line, depth)
         local index = rawget(mt, "__index")
         if index == nil then return nil end
 
-        if type(index) == "function" or (type(index) == "table" and index.__fn) then
+        if type(index) == "function" or isClosure(index) then
             return singleOf(self:callFunction(index, { tbl, key }))
         elseif type(index) == "table" then
             return self:tableGet(index, key, line, depth + 1)
@@ -358,7 +369,7 @@ function Runtime:tableSet(tbl, key, value, line)
 
     if newindex == nil then
         rawset(tbl, key, value)
-    elseif type(newindex) == "function" or (type(newindex) == "table" and newindex.__fn) then
+    elseif type(newindex) == "function" or isClosure(newindex) then
         self:callFunction(newindex, { tbl, key, value })
     elseif type(newindex) == "table" then
         self:tableSet(newindex, key, value, line)
@@ -406,7 +417,7 @@ function Runtime:callFunctionMulti(fn, args, line)
         -- Otherwise Roblox rejects the table with "Passed value is not a function".
         local wrappedArgs = args
         for i = 1, #args do
-            if type(args[i]) == "table" and args[i].__fn then
+            if isClosure(args[i]) then
                 -- Lazy-copy args only on first closure found
                 if wrappedArgs == args then
                     wrappedArgs = {}
@@ -436,7 +447,7 @@ function Runtime:callFunctionMulti(fn, args, line)
     end
 
     -- Interpreter closure
-    if type(fn) == "table" and fn.__fn then
+    if isClosure(fn) then
         self.callDepth = self.callDepth + 1
         if self.callDepth > self.maxCallDepth then
             self.callDepth = self.callDepth - 1
@@ -878,7 +889,7 @@ function Runtime:execStat(node, scope)
         -- to obtain (iterFn, state, control).
         if #node.iters == 1 then
             local first = flat[1]
-            if type(first) == "table" and not first.__fn then
+            if type(first) == "table" and not isClosure(first) then
                 local mt = getmetatable(first)
                 if mt then
                     local iterMM = rawget(mt, "__iter")
