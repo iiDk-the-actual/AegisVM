@@ -44,10 +44,10 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
-- **`<close>` attribute enforcement** (commit `8715005`) - `Scope.luau` now tracks a `closeList` array. `declareLocal` gains a 4th `isClose` parameter. Runtime `LocalDeclaration` passes `isClose` when `attrib == "close"`. `execBlock` wraps the statement loop in an outer pcall so any exit path (normal, break, continue, return, error) triggers `runCloseHandlers`. Handlers run LIFO; errors inside `__close` are swallowed so they do not mask the original signal. `closeErr` is nil for control-flow signals, the error object for real errors.
-- **T-02** (commit `e660a9b`) - `runtime.callStack` list of `{chunkName, line}` frames. `callFunctionMulti` pushes/pops around interpreter closure calls. `execStat` updates `_currentLine`. `makeClosure` embeds `sourceName`. Parser embeds `sourceName` in root Block; `Aegis.luau` sets `runtime.sourceName` before each run. `buildDebug` uses call stack for `debug.traceback` (innermost-first, respects `level` arg).
-- **T-07** (commit `e660a9b`) - `ipairs` in `buildCore` now checks `__ipairs` in the metatable before falling back to standard integer-key iteration, consistent with `__pairs`.
-- Prior session: `class`/`extends`, `<const>`, interpolated strings, `if`-expressions, `__iter`, `table.freeze`/`isfrozen`, `math.noise` (commit `c5e8096`)
+- **Vector3 "vector" type support** (commit `5a48cf4`) - Roblox now returns `type(Vector3.new()) == "vector"` in newer builds instead of `"userdata"`. Added `or type(...) == "vector"` to all arithmetic, comparison, unary, tableGet, tableSet, and callFunctionMulti guards so Vector3 operations fall through to `tryNativeBinop` correctly.
+- **Per-coroutine call stacks** (commit `ddca1c6`) - `self.callStack` (shared array) replaced with `self.callStacks` keyed by `coroutine.running()`. Fixes "attempt to index nil with 'fnName'" crash caused by holes in the shared array when coroutines yield inside pcall and interleave frame pushes/pops.
+- **Verbosity levels + coroutine/pcall error handling** (commit `c6b8dbd`) - `Constants.luau` adds VERBOSITY_SILENT/BRIEF/STANDARD/VERBOSE. `Error:__tostring` branches on verbosity. `StdLib.luau` wrapFn in buildCoroutine/buildTask uses `table.pack(...)` and pcall with signal swallow + real-error rethrow.
+- **CONVERT_BASE_URL update** (commit `cfc5bae`) - moved rbxm service from `convert.iidk.online` to `api.aegislua.xyz`. Source repo updated to `AegisLua/API`.
 
 ---
 
@@ -55,8 +55,9 @@ All core language features are implemented and working:
 
 From `TASKS.md`, in priority order:
 
-1. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Roblox Studio. Requires manual Studio testing.
-2. **Release** - bump version and cut a new GitHub release. T-02, T-07, `<close>` are all done. This is a good release point.
+1. **T-10** - Confirm `api.aegislua.xyz/rbxm?url=` is live and `game:GetObjects` still works end-to-end. Requires Studio + a live asset URL to test against.
+2. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Studio.
+3. **Release** - bump version and cut a new GitHub release. Many fixes landed this session; this is a good release point.
 
 ---
 
@@ -102,11 +103,11 @@ From `TASKS.md`, in priority order:
 | `src/server/Aegis/Scope.luau` | Scope chain. `declareLocal`, `get`, `assign`, `defineGlobal`, `getGlobalScope`. |
 | `src/server/Aegis/Error.luau` | Error types and control-flow sentinels. Check here first when signals are swallowed. |
 | `src/server/Aegis/Lexer.luau` | Tokenizer. `readLongBracketBody` scans body only (not closing bracket) for newlines. |
-| `src/server/Aegis/Constants.luau` | Version string and `CONVERT_BASE_URL`. Bump `VERSION` before a release. |
+| `src/server/Aegis/Constants.luau` | Version string, verbosity levels, and `CONVERT_BASE_URL` (now `api.aegislua.xyz`). Bump `VERSION` before a release. |
 | `src/server/Aegis/Libraries/NewScript.luau` | Script instance factory. `NewScript.new(opts)` clones a template and injects `_aegis`. Clone path: `script.Parent.Parent:Clone()`. |
 | `src/server/Aegis/Libraries/WebRbxmParser.luau` | Rbxm deserializer. Delegates script creation to NewScript. |
 | `default.project.json` | Rojo sync config. Must stay in sync with any new child modules. |
 | `model.project.json` | Release build config. Nests Aegis under MainModule for `require(assetId)`. |
 | `.github/workflows/release.yml` | CI release pipeline. Builds `.rbxm`, uploads, patches Roblox asset. |
 | `FILEMAP.md` | Quick symbol reference for every file and builder function. |
-| `TASKS.md` | Active task list. 3 pending tasks: T-02, T-07, T-08/T-09. |
+| `TASKS.md` | Active task list. Pending: T-08, T-09, T-10. |

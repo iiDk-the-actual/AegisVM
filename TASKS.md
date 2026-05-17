@@ -1,6 +1,6 @@
 # TASKS.md - AegisVM Active Task Tracker
 
-Last updated: 2026-05-17 (updated this session)
+Last updated: 2026-05-17
 Maintainer convention: claim a task by adding `[agent/dev name]` next to its status before starting work. Mark done when merged.
 
 ---
@@ -17,6 +17,7 @@ _Nothing currently claimed._
 |----|-------------|--------|----------------------|
 | T-08 | Validate `buffer` library in Studio | todo | `buildBuffer` was added but not tested. Verify that `buffer.create`, `buffer.readf64`, `buffer.writestring`, etc. all behave correctly from inside a sandbox. Requires Studio. |
 | T-09 | Validate `task.*` and `spawn`/`delay` closure wrapping in Studio | todo | `task.spawn`/`defer`/`delay` and deprecated `spawn`/`delay` now wrap interpreter closures. Test that yielding works and errors surface correctly. Requires Studio. |
+| T-10 | Validate api.aegislua.xyz endpoint with WebRbxmParser | todo | CONVERT_BASE_URL changed to https://api.aegislua.xyz/rbxm?url= (AegisLua/API). Confirm the endpoint is live and game:GetObjects still resolves rbxm assets correctly. |
 
 ---
 
