@@ -44,14 +44,9 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
-- **`<const>` enforcement** - `Scope.luau` now tracks a `consts` table. `declareLocal(name, value, isConst)` accepts an optional third argument. `set()` raises a RuntimeError on assignment to a const variable. Runtime `LocalDeclaration` handler passes `node.attribs[i] == "const"` as the flag.
-- **`class` / `extends` keyword** - Lexer adds `class` and `extends` to KEYWORDS. Parser adds `ClassDeclaration` AST node with `name`, `superName`, `fields` (name + optional default expr), and `methods` (name + FunctionBody). Runtime creates a class table with `__index = classTable`, optionally sets `setmetatable(classTable, {__index = parent})` for inheritance, evaluates field defaults, and binds methods as closures.
-- **Interpolated strings** - Lexer handles backtick strings `` `Hello {name}!` `` and emits `ISTRING` tokens containing `{kind="text"/"expr", ...}` part arrays. Parser re-tokenizes and re-parses each expr segment using a sub-Parser. Runtime evaluates and concatenates via the sandbox `tostring`.
-- **`if`-then-else expressions** - Parser handles `if cond then a [elseif cond then b]* else c` as a primary expression (`IfExpr` node). Runtime evaluates the correct branch.
-- **`__iter` metamethod** - GenericFor in Runtime now checks for `__iter` in a table's metatable when a single table is passed as the iterator, following Luau semantics.
-- **`table.freeze`/`table.isfrozen`, `math.noise`** - added to StdLib (forwarded from host, with fallback stubs).
-
-All changes in this session (commit pending).
+- **`<close>` attribute enforcement** (commit `8715005`) - `Scope.luau` now tracks a `closeList` array. `declareLocal` gains a 4th `isClose` parameter. Runtime `LocalDeclaration` passes `isClose` when `attrib == "close"`. `execBlock` wraps the statement loop in an outer pcall so any exit path (normal, break, continue, return, error) triggers `runCloseHandlers`. Handlers run LIFO; errors inside `__close` are swallowed so they do not mask the original signal. `closeErr` is nil for control-flow signals, the error object for real errors.
+- **T-02 / T-07** - being implemented by a parallel agent in a worktree (debug.traceback call stack + __ipairs metamethod). Not yet merged to main.
+- Prior session: `class`/`extends`, `<const>`, interpolated strings, `if`-expressions, `__iter`, `table.freeze`/`isfrozen`, `math.noise` (commit `c5e8096`)
 
 ---
 
@@ -59,10 +54,9 @@ All changes in this session (commit pending).
 
 From `TASKS.md`, in priority order:
 
-1. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Roblox Studio. Requires manual Studio testing.
-2. **T-02** - AegisVM-aware `debug.traceback`: currently shows host Runtime stack, not guest code frames. Requires Runtime to maintain a call-stack log of `(chunkName, line)` entries for interpreter frames. Most impactful remaining feature gap.
-3. **`<close>` attribute** - `local x <close> = value` is parsed but not enforced. Implementing it requires calling `__close` on scope exit for any block exit path (break, continue, return, error). Non-trivial.
-4. **T-07** - `__ipairs` metamethod support for `ipairs`. Low priority.
+1. **T-02 / T-07** - being implemented by parallel agent (debug.traceback call stack; __ipairs). Merge that worktree branch when it completes.
+2. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Roblox Studio. Requires manual Studio testing.
+3. **Release** - bump version and cut a new GitHub release once T-02 is merged.
 
 ---
 
@@ -79,7 +73,11 @@ From `TASKS.md`, in priority order:
 
 **`tableGet` depth limit** - `__index` chains are capped at 200 levels (matches `maxCallDepth`). Circular metatables produce a clean RuntimeError.
 
-**`debug.traceback` reports host stack** - shows the Runtime's internal Lua frames, not guest script locations (T-02 tracks this).
+**`<close>` handlers swallow their own errors** - if `__close` itself throws, the error is silently discarded (matching Luau semantics). The original signal still propagates.
+
+**`execBlock` now has two levels of pcall** - the inner per-statement pcall handles goto; the outer wraps the whole loop for close-handler cleanup. This is intentional and correct; do not collapse them.
+
+**`debug.traceback` reports host stack** - shows the Runtime's internal Lua frames, not guest script locations (T-02 tracks this; parallel agent implementing).
 
 **`getfenv`/`setfenv` are level-agnostic** - all numeric levels return the same sandbox global environment.
 
