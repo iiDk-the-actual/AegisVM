@@ -154,6 +154,31 @@ function Parser:expect(ttype, hint)
     return self:advance()
 end
 
+-- Soft/contextual keywords that are valid as identifiers (variable names,
+-- parameter names, field names). These are keywords only in specific
+-- syntactic positions; everywhere else they act like plain identifiers.
+-- Note: "typeof" is excluded - it has dedicated TypeOf AST node handling
+-- in parsePrimaryExpr and must not be treated as a plain identifier there.
+local SOFT_KEYWORDS = {
+    ["type"]=true, ["export"]=true,
+    ["class"]=true, ["extends"]=true,
+}
+
+-- Consume an identifier or a soft keyword used as a name.
+-- Use this instead of expect("IDENTIFIER") wherever a variable/parameter
+-- name is expected, so that code like  function f(type, export) end  works.
+function Parser:expectName(hint)
+    local t = self:cur()
+    if t.type == "IDENTIFIER" or SOFT_KEYWORDS[t.type] then
+        return self:advance()
+    end
+    self:error(string.format(
+        "expected name%s, got '%s'",
+        hint and (" (" .. hint .. ")") or "",
+        t.type
+    ))
+end
+
 -- Consume a token if its type matches; return the token or nil.
 function Parser:consume(ttype)
     if self:cur().type == ttype then
@@ -350,7 +375,7 @@ function Parser:parseStatement()
         -- local function
         if self:check("function") then
             self:advance()
-            local nameToken = self:expect("IDENTIFIER", "function name")
+            local nameToken = self:expectName("function name")
             local body = self:parseFunctionBody()
             return { kind = "LocalFunction", name = nameToken.value,
                      body = body, line = line, col = col }
@@ -359,7 +384,7 @@ function Parser:parseStatement()
         -- local var list (with optional type annotations and attributes)
         local names, attribs, typeAnnots = {}, {}, {}
         repeat
-            local nm = self:expect("IDENTIFIER", "variable name")
+            local nm = self:expectName("variable name")
             names[#names + 1] = nm.value
 
             -- Luau attribute <close> <const>
@@ -395,21 +420,21 @@ function Parser:parseStatement()
         self:advance()
 
         -- Name: can be  a  |  a.b.c  |  a.b.c:d
-        local nameBase = self:expect("IDENTIFIER", "function name")
+        local nameBase = self:expectName("function name")
         local nameExpr = { kind = "Identifier", name = nameBase.value,
                            line = nameBase.line, col = nameBase.col }
         local isMethod = false
 
         while self:check(".") do
             self:advance()
-            local field = self:expect("IDENTIFIER", "field name")
+            local field = self:expectName("field name")
             nameExpr = { kind = "FieldExpr", table = nameExpr,
                          field = field.value,
                          line = field.line, col = field.col }
         end
 
         if self:consume(":") then
-            local method = self:expect("IDENTIFIER", "method name")
+            local method = self:expectName("method name")
             nameExpr = { kind = "MethodName", table = nameExpr,
                          method = method.value,
                          line = method.line, col = method.col }
@@ -472,16 +497,16 @@ function Parser:parseStatement()
                 -- Method: function [ClassName.]name(params)...end
                 --       or function [ClassName:]name(params)...end
                 self:advance()
-                local firstName = self:expect("IDENTIFIER", "method name").value
+                local firstName = self:expectName("method name").value
                 local methodName = firstName
                 local isMethod   = false
 
                 if self:check(".") then
                     self:advance()
-                    methodName = self:expect("IDENTIFIER", "method name").value
+                    methodName = self:expectName("method name").value
                 elseif self:check(":") then
                     self:advance()
-                    methodName = self:expect("IDENTIFIER", "method name").value
+                    methodName = self:expectName("method name").value
                     isMethod   = true
                 end
 
@@ -650,7 +675,7 @@ function Parser:parseStatement()
     -- ── for ───────────────────────────────────────────────────────
     elseif t.type == "for" then
         self:advance()
-        local firstName = self:expect("IDENTIFIER").value
+        local firstName = self:expectName().value
 
         -- Numeric: for i = start, limit [, step] do
         if self:consume("=") then
@@ -675,7 +700,7 @@ function Parser:parseStatement()
             end
 
             while self:consume(",") do
-                vars[#vars + 1] = self:expect("IDENTIFIER").value
+                vars[#vars + 1] = self:expectName().value
                 if self:check(":") then
                     self:advance(); self:parseTypeExpr()
                 end
@@ -750,7 +775,7 @@ function Parser:parseFunctionBody(isMethod)
                 hasVarArg = true
                 break
             end
-            local paramName = self:expect("IDENTIFIER", "parameter name").value
+            local paramName = self:expectName("parameter name").value
             params[#params + 1] = paramName
             -- Optional type annotation
             if self:check(":") then
@@ -853,7 +878,7 @@ function Parser:parseSuffixExpr()
 
         if t.type == "." then
             self:advance()
-            local field = self:expect("IDENTIFIER", "field name")
+            local field = self:expectName("field name")
             expr = { kind = "FieldExpr", table = expr, field = field.value,
                      line = field.line, col = field.col }
 
@@ -866,7 +891,7 @@ function Parser:parseSuffixExpr()
 
         elseif t.type == ":" then
             self:advance()
-            local method = self:expect("IDENTIFIER", "method name")
+            local method = self:expectName("method name")
             local args   = self:parseCallArgs(line, col)
             expr = { kind = "MethodCall", receiver = expr,
                      method = method.value, args = args,
@@ -964,8 +989,8 @@ function Parser:parsePrimaryExpr()
         -- Wrapping in Paren adjusts multiple returns to 1
         return { kind = "Paren", expr = inner, line = line, col = col }
 
-    -- Identifier
-    elseif t.type == "IDENTIFIER" then
+    -- Identifier (or a soft keyword used as a variable reference)
+    elseif t.type == "IDENTIFIER" or SOFT_KEYWORDS[t.type] then
         self:advance()
         return { kind = "Identifier", name = t.value, line = line, col = col }
 
@@ -1051,8 +1076,9 @@ function Parser:parseTableConstructor()
                                      key = key, value = value,
                                      line = fLine, col = fCol }
 
-        -- name = value
-        elseif self:check("IDENTIFIER") and self:peek(1).type == "=" then
+        -- name = value  (name may be a soft keyword like "type")
+        elseif (self:check("IDENTIFIER") or SOFT_KEYWORDS[self:cur().type])
+               and self:peek(1).type == "=" then
             local name = self:advance().value
             self:advance()   -- =
             local value = self:parseExpr()
