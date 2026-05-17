@@ -219,8 +219,23 @@ local function buildCore(scope, runtime)
         return select(index, ...)
     end))
 
-    -- ipairs
-    scope:defineGlobal("ipairs", native(ipairs))
+    -- ipairs - supports __ipairs metamethod for consistency with __pairs
+    scope:defineGlobal("ipairs", native(function(tbl)
+        local mt = getmetatable(tbl)
+        if mt then
+            local mm = rawget(mt, "__ipairs")
+            if mm ~= nil then return mm(tbl) end
+        end
+        -- Standard sequential integer-key iteration
+        local i = 0
+        return function(t, _)
+            i = i + 1
+            local v = t[i]
+            if v ~= nil then
+                return i, v
+            end
+        end, tbl, 0
+    end))
 
     -- pairs - supports __pairs metamethod on any value (tables, userdata, etc.)
     scope:defineGlobal("pairs", native(function(tbl)
@@ -713,14 +728,48 @@ end
 
 -- ─── debug library ───────────────────────────────────────────────────
 
-local function buildDebug(scope)
+local function buildDebug(scope, runtime)
     local lib = {}
 
-    if debug then
-        -- traceback(msg?, level?) - human-readable stack trace string
-        if debug.traceback then
-            lib.traceback = debug.traceback
+    -- traceback(msg?, level?) - AegisVM-aware guest call stack trace.
+    -- Returns a multi-line string in Luau format. Falls back to a minimal
+    -- message when the interpreter call stack is empty (top-level script).
+    lib.traceback = function(msgOrThread, level)
+        local msg = type(msgOrThread) == "string" and msgOrThread or nil
+        level = type(level) == "number" and math.max(1, level) or 1
+
+        local stack = runtime.callStack
+        -- Count filled slots (slots are cleared to nil on pop, so compact)
+        local frameCount = #stack
+
+        local lines = { "Stack Begin" }
+        local skip = level - 1
+        local skipped = 0
+        -- Frames are oldest at index 1; newest (innermost) at frameCount.
+        -- Luau lists innermost first, so iterate in reverse.
+        for i = frameCount, 1, -1 do
+            local frame = stack[i]
+            if frame then
+                if skipped < skip then
+                    skipped = skipped + 1
+                else
+                    lines[#lines + 1] = "  Script '"
+                        .. tostring(frame.chunkName)
+                        .. "', Line "
+                        .. tostring(frame.line)
+                end
+            end
         end
+        lines[#lines + 1] = "Stack End"
+
+        local traceStr = table.concat(lines, "\n")
+        if msg then
+            return msg .. "\n" .. traceStr
+        end
+        return traceStr
+    end
+
+    if debug then
 
         -- info(level|thread|func, options) - Roblox variant of getinfo
         if debug.info then
@@ -957,7 +1006,7 @@ function StdLib.populate(scope, runtime)
     buildCoroutine(scope, runtime)
     buildTask(scope, runtime)
     buildBuffer(scope)
-    buildDebug(scope)
+    buildDebug(scope, runtime)
     buildRoblox(scope, runtime)
     buildGlobalTable(scope)
 end

@@ -1085,6 +1085,7 @@ local ParserModule = {}
 function ParserModule.parse(tokens, sourceName)
     local parser = Parser.new(tokens, sourceName)
     local block  = parser:parseBlock("EOF")
+    block.sourceName = sourceName or "?"
     return block
 end
 

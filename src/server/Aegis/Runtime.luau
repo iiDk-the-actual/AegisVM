@@ -126,6 +126,9 @@ function Runtime.new(globalScope)
     self.globalScope  = globalScope or Scope.global("global")
     self.callDepth    = 0
     self.maxCallDepth = 200
+    self.sourceName   = "?"     -- current chunk name; set by Aegis before each execBlock
+    self.callStack    = {}      -- list of {chunkName, line} for interpreter call frames
+    self._currentLine = 0       -- last statement line seen by execStat
     return self
 end
 
@@ -378,11 +381,12 @@ end
 
 function Runtime:makeClosure(bodyNode, scope)
     return {
-        __fn     = true,
-        params   = bodyNode.params,
+        __fn      = true,
+        params    = bodyNode.params,
         hasVarArg = bodyNode.hasVarArg,
-        block    = bodyNode.block,
-        closure  = scope,   -- captured lexical scope
+        block     = bodyNode.block,
+        closure   = scope,            -- captured lexical scope
+        sourceName = self.sourceName, -- chunk where this closure was defined
     }
 end
 
@@ -457,11 +461,18 @@ function Runtime:callFunctionMulti(fn, args, line)
             callScope:declareLocal("...", { values = vaValues, n = vaCount })
         end
 
+        -- Push a call stack frame so debug.traceback shows guest locations.
+        -- `line` is the call site line; sourceName is from the closure's definition.
+        local frameIdx = #self.callStack + 1
+        self.callStack[frameIdx] = { chunkName = fn.sourceName or "?", line = line or 0 }
+
         -- Execute body; catch return signals
         local ok, sig = pcall(function()
             self:execBlock(fn.block, callScope)
         end)
 
+        -- Always pop the frame before returning or re-raising.
+        self.callStack[frameIdx] = nil
         self.callDepth = self.callDepth - 1
 
         if ok then
@@ -733,6 +744,7 @@ end
 -- ─── Statement execution ──────────────────────────────────────────────
 
 function Runtime:execStat(node, scope)
+    if node.line then self._currentLine = node.line end
     local kind = node.kind
 
     -- ── Expression statement (must be a call) ────────────────────

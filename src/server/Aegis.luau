@@ -203,6 +203,9 @@ end
 -- Returns (true, v1, v2, …) on success or (false, errorMessage) on failure.
 -- Top-level return values from the script are unpacked as extra return values.
 local function execAST(sandbox, ast)
+    -- Inform the runtime which chunk is running so call-stack frames carry
+    -- the correct source name in debug.traceback output.
+    sandbox.runtime.sourceName = ast.sourceName or "chunk"
     local ok, result = Runtime.execBlock(sandbox.runtime, ast, sandbox.scope)
     if ok then
         if result == nil then

@@ -15,8 +15,6 @@ _Nothing currently claimed._
 
 | ID | Description | Status | Notes / Dependencies |
 |----|-------------|--------|----------------------|
-| T-02 | AegisVM-aware `debug.traceback` | todo | Currently delegates to host `debug.traceback`, which reports the Runtime internals rather than guest code location. Requires Runtime to maintain a call-stack log of `(chunkName, line)` entries for interpreter frames. |
-| T-07 | `ipairs` metamethod support | todo | `buildCore` exposes the raw host `ipairs`. AegisVM could support a custom `__ipairs` metamethod for consistency with the fixed `__pairs`. Low priority. Distinct from `__iter` (now done). |
 | T-08 | Validate `buffer` library in Studio | todo | `buildBuffer` was added but not tested. Verify that `buffer.create`, `buffer.readf64`, `buffer.writestring`, etc. all behave correctly from inside a sandbox. Requires Studio. |
 | T-09 | Validate `task.*` and `spawn`/`delay` closure wrapping in Studio | todo | `task.spawn`/`defer`/`delay` and deprecated `spawn`/`delay` now wrap interpreter closures. Test that yielding works and errors surface correctly. Requires Studio. |
 
@@ -41,6 +39,8 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 | #14 | `tableGet` depth limit - RuntimeError on __index chains > 200 deep | `df9f46d` |
 | #15 | Lexer column tracking after long string - body-only newline scan | `df9f46d` |
 | #16 | `pairs()` now checks `__pairs` on any value type, not just tables | `df9f46d` |
+| T-02 | AegisVM-aware `debug.traceback` - call stack log, LIFO frame push/pop in callFunctionMulti | TBD |
+| T-07 | `__ipairs` metamethod support in `ipairs` | TBD |
 | - | `<close>` attribute enforcement - `__close` called in LIFO order on scope exit for any exit path | TBD |
 | - | `class`/`extends` keyword, `<const>` enforcement, string interpolation, `if`-expressions, `__iter` metamethod, `table.freeze`/`isfrozen`, `math.noise` | this session |
 | - | Add `getfenv`/`setfenv` globals, `buffer` library, `newproxy`; fix `table.sort`/`task.*` closure support | `baa936a` |
