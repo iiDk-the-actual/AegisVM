@@ -182,7 +182,7 @@ function Runtime.new(globalScope)
     self.callDepth    = 0
     self.maxCallDepth = 200
     self.sourceName   = "?"     -- current chunk name; set by Aegis before each execBlock
-    self.callStack    = {}      -- list of {chunkName, line} for interpreter call frames
+    self.callStacks   = {}      -- per-coroutine call stacks: [coroutine] = {frame, ...}
     self._currentLine = 0       -- last statement line seen by execStat
     return self
 end
@@ -534,10 +534,18 @@ function Runtime:callFunctionMulti(fn, args, line)
             callScope:declareLocal("...", { values = vaValues, n = vaCount })
         end
 
-        -- Push a call stack frame so debug.traceback shows guest locations.
-        -- `line` is the call site line; sourceName is from the closure's definition.
-        local frameIdx = #self.callStack + 1
-        self.callStack[frameIdx] = { chunkName = fn.sourceName or "?", line = line or 0, fnName = fn.name }
+        -- Push a call stack frame into this coroutine's own stack so that
+        -- runtimeError can build a correct trace. Using coroutine.running()
+        -- as the key keeps frames from different coroutines from interleaving
+        -- in the shared table and creating holes that break #-length queries.
+        local co = coroutine.running() or "main"
+        local coStack = self.callStacks[co]
+        if not coStack then
+            coStack = {}
+            self.callStacks[co] = coStack
+        end
+        local frameIdx = #coStack + 1
+        coStack[frameIdx] = { chunkName = fn.sourceName or "?", line = line or 0, fnName = fn.name }
 
         -- Execute body; catch return signals
         local ok, sig = pcall(function()
@@ -545,7 +553,7 @@ function Runtime:callFunctionMulti(fn, args, line)
         end)
 
         -- Always pop the frame before returning or re-raising.
-        self.callStack[frameIdx] = nil
+        coStack[frameIdx] = nil
         self.callDepth = self.callDepth - 1
 
         if ok then
@@ -1357,7 +1365,9 @@ end
 
 function Runtime:runtimeError(msg, line)
     local err = Error.runtime(msg, line)
-    local N = #self.callStack
+    local co = coroutine.running() or "main"
+    local stack = self.callStacks[co] or {}
+    local N = #stack
     if N == 0 then
         -- Error in main chunk
         if line and line > 0 then
@@ -1365,7 +1375,7 @@ function Runtime:runtimeError(msg, line)
         end
     else
         -- Innermost frame: where the error actually happened
-        local innerName = self.callStack[N].fnName
+        local innerName = stack[N].fnName
         if line and line > 0 then
             if innerName then
                 err:pushFrame(string.format("    Line %d - in function '%s'", line, innerName))
@@ -1375,16 +1385,16 @@ function Runtime:runtimeError(msg, line)
         end
         -- Intermediate frames (innermost call site down to second frame)
         for i = N, 2, -1 do
-            local callerName = self.callStack[i - 1].fnName
+            local callerName = stack[i - 1].fnName
             if callerName then
-                err:pushFrame(string.format("    Line %d - in function '%s'", self.callStack[i].line, callerName))
+                err:pushFrame(string.format("    Line %d - in function '%s'", stack[i].line, callerName))
             else
-                err:pushFrame(string.format("    Line %d - in function '?'", self.callStack[i].line))
+                err:pushFrame(string.format("    Line %d - in function '?'", stack[i].line))
             end
         end
         -- Outermost: main chunk called into the first function
-        if self.callStack[1].line > 0 then
-            err:pushFrame(string.format("    Line %d - in main chunk", self.callStack[1].line))
+        if stack[1].line > 0 then
+            err:pushFrame(string.format("    Line %d - in main chunk", stack[1].line))
         end
     end
     error(err, 0)
