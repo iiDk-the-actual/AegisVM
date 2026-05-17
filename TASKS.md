@@ -39,9 +39,9 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 | #14 | `tableGet` depth limit - RuntimeError on __index chains > 200 deep | `df9f46d` |
 | #15 | Lexer column tracking after long string - body-only newline scan | `df9f46d` |
 | #16 | `pairs()` now checks `__pairs` on any value type, not just tables | `df9f46d` |
-| T-02 | AegisVM-aware `debug.traceback` - call stack log, LIFO frame push/pop in callFunctionMulti | TBD |
-| T-07 | `__ipairs` metamethod support in `ipairs` | TBD |
-| - | `<close>` attribute enforcement - `__close` called in LIFO order on scope exit for any exit path | TBD |
+| T-02 | AegisVM-aware `debug.traceback` - call stack log, frame push/pop in callFunctionMulti | `e660a9b` |
+| T-07 | `ipairs` `__ipairs` metamethod support | `e660a9b` |
+| - | `<close>` attribute enforcement - `__close` called in LIFO order on scope exit for any exit path | `8715005` |
 | - | `class`/`extends` keyword, `<const>` enforcement, string interpolation, `if`-expressions, `__iter` metamethod, `table.freeze`/`isfrozen`, `math.noise` | this session |
 | - | Add `getfenv`/`setfenv` globals, `buffer` library, `newproxy`; fix `table.sort`/`task.*` closure support | `baa936a` |
 | - | Remove host-exposing `debug` functions; proxy `debug.getfenv`/`setfenv` to sandbox-safe Aegis equivalents | `bb59faa` |

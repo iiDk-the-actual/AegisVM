@@ -45,7 +45,8 @@ All core language features are implemented and working:
 ## What Was Just Completed
 
 - **`<close>` attribute enforcement** (commit `8715005`) - `Scope.luau` now tracks a `closeList` array. `declareLocal` gains a 4th `isClose` parameter. Runtime `LocalDeclaration` passes `isClose` when `attrib == "close"`. `execBlock` wraps the statement loop in an outer pcall so any exit path (normal, break, continue, return, error) triggers `runCloseHandlers`. Handlers run LIFO; errors inside `__close` are swallowed so they do not mask the original signal. `closeErr` is nil for control-flow signals, the error object for real errors.
-- **T-02 / T-07** - being implemented by a parallel agent in a worktree (debug.traceback call stack + __ipairs metamethod). Not yet merged to main.
+- **T-02** (commit `e660a9b`) - `runtime.callStack` list of `{chunkName, line}` frames. `callFunctionMulti` pushes/pops around interpreter closure calls. `execStat` updates `_currentLine`. `makeClosure` embeds `sourceName`. Parser embeds `sourceName` in root Block; `Aegis.luau` sets `runtime.sourceName` before each run. `buildDebug` uses call stack for `debug.traceback` (innermost-first, respects `level` arg).
+- **T-07** (commit `e660a9b`) - `ipairs` in `buildCore` now checks `__ipairs` in the metatable before falling back to standard integer-key iteration, consistent with `__pairs`.
 - Prior session: `class`/`extends`, `<const>`, interpolated strings, `if`-expressions, `__iter`, `table.freeze`/`isfrozen`, `math.noise` (commit `c5e8096`)
 
 ---
@@ -54,9 +55,8 @@ All core language features are implemented and working:
 
 From `TASKS.md`, in priority order:
 
-1. **T-02 / T-07** - being implemented by parallel agent (debug.traceback call stack; __ipairs). Merge that worktree branch when it completes.
-2. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Roblox Studio. Requires manual Studio testing.
-3. **Release** - bump version and cut a new GitHub release once T-02 is merged.
+1. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Roblox Studio. Requires manual Studio testing.
+2. **Release** - bump version and cut a new GitHub release. T-02, T-07, `<close>` are all done. This is a good release point.
 
 ---
 
@@ -77,7 +77,7 @@ From `TASKS.md`, in priority order:
 
 **`execBlock` now has two levels of pcall** - the inner per-statement pcall handles goto; the outer wraps the whole loop for close-handler cleanup. This is intentional and correct; do not collapse them.
 
-**`debug.traceback` reports host stack** - shows the Runtime's internal Lua frames, not guest script locations (T-02 tracks this; parallel agent implementing).
+**`debug.traceback` uses interpreter call stack** - shows guest frames (chunkName + call-site line), not host Lua internals. Works only for interpreter closures; calls into native Roblox APIs don't add frames.
 
 **`getfenv`/`setfenv` are level-agnostic** - all numeric levels return the same sandbox global environment.
 

@@ -56,7 +56,7 @@ AST-walking interpreter. All evaluation and execution lives here.
 
 | Symbol | What it does |
 |---|---|
-| `Runtime.new(globalScope)` | Constructor; sets `callDepth`, `maxCallDepth` |
+| `Runtime.new(globalScope)` | Constructor; sets `callDepth`, `maxCallDepth`, `sourceName`, `callStack`, `_currentLine` |
 | `Runtime:eval(node, scope)` | Evaluates an expression node, returns one value |
 | `Runtime:evalMulti(node, scope)` | Like eval but returns a MultiReturn table for calls/varargs |
 | `Runtime:evalBinary(node, scope)` | All binary operators; short-circuits `and`/`or`; uses `bit32.*` for bitwise |
@@ -137,7 +137,7 @@ Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 | `buildCoroutine` | `coroutine.*` |
 | `buildTask` | `task.spawn/defer/delay/wait/cancel` (spawn/defer/delay wrap interpreter closures) |
 | `buildBuffer` | `buffer.*` (full Roblox buffer API) |
-| `buildDebug` | `debug.traceback/info/getinfo/getmetatable/setmetatable/profilebegin/profileend/resetmemorycategory/setmemorycategory` + sandboxed `getfenv`/`setfenv` |
+| `buildDebug` | `debug.traceback` (AegisVM-aware, reads `runtime.callStack`), `info`, `getinfo`, `getmetatable`, `setmetatable`, profiling markers, sandboxed `getfenv`/`setfenv` |
 | `buildRoblox` | `game` (proxy), `workspace`, `Enum`, `Instance`, `shared`, `newproxy`, all value-type constructors, time globals, deprecated schedulers (spawn/delay wrap interpreter closures) |
 | `buildGlobalTable` | `_G` |
 
