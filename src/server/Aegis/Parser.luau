@@ -28,6 +28,9 @@
     GotoStatement      { name }
     TypeAlias          { name, generics, type }   -- parsed, ignored at runtime
     ExprStatement      { expr }                   -- a call used as a statement
+    ClassDeclaration   { name, superName, fields, methods }
+                       -- fields: list of {name, default?}
+                       -- methods: list of {name, body}
 
     Expression node kinds
     ─────────────────────
@@ -49,6 +52,8 @@
     MethodCall         { receiver, method, args }
     FunctionCall       { callee, args }
     TypeCast           { expr, type }             -- x :: T  (runtime: noop)
+    InterpolatedString { parts }                  -- parts: {kind="text",value} | {kind="expr",expr}
+    IfExpr             { cond, thenVal, elseIfs, elseVal }
 
     FunctionBody       { params, hasVarArg, retType, block }
     ── Operator precedence (lowest -> highest) ─────────────────────────
@@ -68,6 +73,7 @@
 ]]
 
 local Error = require(script.Parent.Error)
+local Lexer = require(script.Parent.Lexer)
 
 -- ─── Precedence table ────────────────────────────────────────────────
 
@@ -94,6 +100,7 @@ local KEYWORDS_SET = {
     ["goto"]=1,["if"]=1,["in"]=1,["local"]=1,["nil"]=1,["not"]=1,
     ["or"]=1,["repeat"]=1,["return"]=1,["then"]=1,["true"]=1,
     ["until"]=1,["while"]=1,["type"]=1,["typeof"]=1,["export"]=1,
+    ["class"]=1,["extends"]=1,
 }
 
 -- ─── Parser class ────────────────────────────────────────────────────
@@ -439,6 +446,94 @@ function Parser:parseStatement()
                      line = line, col = col }
         end
         -- else fall through to expression statement
+
+    -- ── Class declaration (Luau) ──────────────────────────────────
+    elseif t.type == "class" then
+        self:advance()
+        local className = self:expect("IDENTIFIER", "class name").value
+
+        local superName = nil
+        if self:check("extends") then
+            self:advance()
+            superName = self:expect("IDENTIFIER", "parent class name").value
+        end
+
+        local fields  = {}
+        local methods = {}
+
+        -- Parse the class body: field declarations and method declarations.
+        while not self:check("end") and not self:check("EOF") do
+            while self:consume(";") do end
+            if self:check("end") then break end
+
+            local bt = self:cur()
+
+            if bt.type == "function" then
+                -- Method: function [ClassName.]name(params)...end
+                --       or function [ClassName:]name(params)...end
+                self:advance()
+                local firstName = self:expect("IDENTIFIER", "method name").value
+                local methodName = firstName
+                local isMethod   = false
+
+                if self:check(".") then
+                    self:advance()
+                    methodName = self:expect("IDENTIFIER", "method name").value
+                elseif self:check(":") then
+                    self:advance()
+                    methodName = self:expect("IDENTIFIER", "method name").value
+                    isMethod   = true
+                end
+
+                local body = self:parseFunctionBody(isMethod)
+                methods[#methods + 1] = { name = methodName, body = body }
+
+            elseif bt.type == "type" then
+                -- Type alias inside class body - parse and discard
+                local nextTok = self:peek(1)
+                if nextTok and nextTok.type == "IDENTIFIER" then
+                    self:advance()  -- "type"
+                    self:advance()  -- alias name
+                    if self:check("<") then
+                        self:advance()
+                        if not self:check(">") then
+                            self:expect("IDENTIFIER")
+                            while self:consume(",") do
+                                if self:check(">") then break end
+                                self:expect("IDENTIFIER")
+                            end
+                        end
+                        self:expect(">")
+                    end
+                    self:expect("=")
+                    self:parseTypeExpr()
+                else
+                    break
+                end
+
+            elseif bt.type == "IDENTIFIER" then
+                -- Field: name [: Type] [= expr]
+                local fieldName = self:advance().value
+                if self:check(":") then
+                    self:advance()
+                    self:parseTypeExpr()
+                end
+                local default = nil
+                if self:consume("=") then
+                    default = self:parseExpr()
+                end
+                fields[#fields + 1] = { name = fieldName, default = default }
+
+            else
+                -- Unexpected token - stop class body parsing
+                break
+            end
+        end
+
+        self:expect("end")
+        return { kind = "ClassDeclaration", name = className,
+                 superName = superName, fields = fields, methods = methods,
+                 line = line, col = col }
 
     -- ── Export type (Luau) ────────────────────────────────────────
     elseif t.type == "export" then
@@ -881,6 +976,51 @@ function Parser:parsePrimaryExpr()
         local inner = self:parseExpr()
         self:expect(")")
         return { kind = "TypeOf", expr = inner, line = line, col = col }
+
+    -- Interpolated string: `Hello {name}!`
+    elseif t.type == "ISTRING" then
+        self:advance()
+        local parts = {}
+        for _, part in ipairs(t.value) do
+            if part.kind == "text" then
+                parts[#parts + 1] = { kind = "text", value = part.value }
+            else
+                -- Re-tokenise and parse the embedded expression source
+                local ok, tokens = pcall(Lexer.tokenize, part.source, self.sourceName)
+                if not ok then
+                    self:error("interpolated string expression error: "
+                        .. tostring(tokens))
+                end
+                local subParser  = Parser.new(tokens, self.sourceName)
+                local exprNode   = subParser:parseExpr()
+                parts[#parts + 1] = { kind = "expr", expr = exprNode }
+            end
+        end
+        return { kind = "InterpolatedString", parts = parts,
+                 line = line, col = col }
+
+    -- if-then-else expression (Luau): if cond then a [elseif cond then b]* else c
+    elseif t.type == "if" then
+        self:advance()
+        local cond    = self:parseExpr()
+        self:expect("then")
+        local thenVal = self:parseExpr()
+
+        local elseIfs = {}
+        while self:check("elseif") do
+            self:advance()
+            local eiCond = self:parseExpr()
+            self:expect("then")
+            local eiVal  = self:parseExpr()
+            elseIfs[#elseIfs + 1] = { cond = eiCond, value = eiVal }
+        end
+
+        self:expect("else")
+        local elseVal = self:parseExpr()
+
+        return { kind = "IfExpr", cond = cond, thenVal = thenVal,
+                 elseIfs = elseIfs, elseVal = elseVal,
+                 line = line, col = col }
 
     else
         self:error(string.format(

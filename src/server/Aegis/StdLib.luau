@@ -520,6 +520,9 @@ local function buildTable(scope, runtime)
             for k, v in pairs(t) do out[k] = v end
             return out
         end,
+        -- Luau table.freeze / table.isfrozen (read-only tables)
+        freeze   = table.freeze   or function(t) return t end,
+        isfrozen = table.isfrozen or function(_) return false end,
         getn   = function(t) return #t end,  -- Lua 5.1 compat
         maxn   = function(t)
             local max = 0
@@ -575,10 +578,12 @@ local function buildMath(scope)
         sign  = math.sign or function(n) return n > 0 and 1 or (n < 0 and -1 or 0) end,
         clamp = math.clamp or function(n, lo, hi) return math.max(lo, math.min(hi, n)) end,
         round = math.round or function(n) return math.floor(n + 0.5) end,
-        tointeger = math.tointeger,
-        type      = math.type,
+        tointeger  = math.tointeger,
+        type       = math.type,
         maxinteger = math.maxinteger,
         mininteger = math.mininteger,
+        -- Roblox Luau: Perlin noise
+        noise = math.noise,
     }
     scope:defineGlobal("math", lib)
 end

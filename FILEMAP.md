@@ -29,6 +29,9 @@ Tokeniser. Scans source byte-by-byte into a flat token list.
 | `Lexer:scanLongString(level)` | Handles `[=[...]=]`-style long strings/comments |
 | `Lexer:scanNumber()` | Handles decimal, hex, binary, scientific notation |
 | `KEYWORDS` table | Maps identifier text -> keyword token type |
+| `ISTRING` token | Backtick interpolated string: value is `{kind="text"/"expr", ...}[]` |
+
+New keywords: `class`, `extends`.
 
 ---
 
@@ -80,12 +83,13 @@ Lexical scope chain.
 | `Scope.global(name)` | Creates root scope (parent = nil) |
 | `Scope.new(parent, name)` | Creates child scope |
 | `scope:child(name)` | Shorthand for `Scope.new(self, name)` |
-| `scope:declareLocal(name, value)` | Binds in THIS scope; sets both `variables[name]` and `declared[name]` |
+| `scope:declareLocal(name, value, isConst?)` | Binds in THIS scope; marks const if isConst=true |
 | `scope:get(name)` | Walks chain outward; returns nil if not found |
+| `scope:set(name, value)` | Updates existing binding; raises RuntimeError if var is const |
 | `scope:assign(name, value)` | Updates existing binding or creates at global root |
 | `scope:defineGlobal(name, value)` | Writes directly to root scope |
 | `scope:findOwner(name)` | Returns the scope that declares `name`, or nil |
-| `variables` / `declared` | Two parallel tables: value storage + existence flag (needed because nil values can't be stored as table keys) |
+| `variables` / `declared` / `consts` | Three parallel tables: value, existence flag, const flag |
 
 ---
 
@@ -125,7 +129,7 @@ Sandboxed standard library. Called once via `StdLib.populate(scope, runtime)`.
 |---|---|
 | `buildCore` | `print`, `warn`, `tostring`, `tonumber`, `type`, `typeof`, `error`, `assert`, `pcall`, `xpcall`, `select`, `ipairs`, `pairs`, `next`, `rawget/set/equal/len`, `unpack`, `setmetatable`, `getmetatable`, `_VERSION`, `_AEGIS_VERSION`, `loadstring`, `load`, `dofile`, `collectgarbage`, `getfenv`, `setfenv` |
 | `buildString` | `string.*` (no metatable rawset) |
-| `buildTable` | `table.*` + Lua 5.1 compat: `foreach`, `foreachi`, `getn`, `maxn` |
+| `buildTable` | `table.*` + Lua 5.1 compat: `foreach`, `foreachi`, `getn`, `maxn`; `freeze`, `isfrozen` |
 | `buildMath` | `math.*` + Luau extensions |
 | `buildBit32` | `bit32.*` |
 | `buildUtf8` | `utf8.*` |

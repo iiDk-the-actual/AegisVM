@@ -43,7 +43,12 @@ local TT = {
     --  "and" "break" "continue" "do" "else" "elseif" "end"
     --  "false" "for" "function" "goto" "if" "in" "local"
     --  "nil" "not" "or" "repeat" "return" "then" "true"
-    --  "until" "while" "type" "typeof" "export"
+    --  "until" "while" "type" "typeof" "export" "class" "extends"
+
+    -- Interpolated string: value is an array of parts
+    --   { kind = "text", value = string }
+    --   { kind = "expr", source = string }  -- raw source to be re-parsed
+    ISTRING = "ISTRING",
 
     -- Operators & punctuation - token type IS the symbol string
     -- Single-char: + - * % ^ # & | ~ < > = ( ) [ ] { } , ; : . ? @
@@ -80,6 +85,8 @@ local KEYWORDS = {
     ["type"]     = "type",
     ["typeof"]   = "typeof",
     ["export"]   = "export",
+    ["class"]    = "class",
+    ["extends"]  = "extends",
 }
 
 -- ─── Lexer class ─────────────────────────────────────────────────────
@@ -439,6 +446,94 @@ function Lexer:tokenize()
             self:advance()  -- consume opening quote
             local s = self:readQuotedString(c)
             self:emit(TT.STRING, s, line, col)
+
+        -- ── Interpolated string (backtick) ────────────────────────
+        -- Luau: `Hello {name}!`  -- {expr} segments are re-parsed in Parser
+        elseif c == "`" then
+            self:advance()  -- consume opening backtick
+            local parts = {}
+            local buf   = {}
+
+            while not self:atEnd() do
+                local ch = self:cur()
+
+                if ch == "`" then
+                    -- Closing backtick
+                    self:advance()
+                    if #buf > 0 then
+                        parts[#parts + 1] = { kind = "text", value = table.concat(buf) }
+                        buf = {}
+                    end
+                    break
+
+                elseif ch == "{" then
+                    -- Flush accumulated text
+                    if #buf > 0 then
+                        parts[#parts + 1] = { kind = "text", value = table.concat(buf) }
+                        buf = {}
+                    end
+                    self:advance()  -- consume {
+
+                    -- Capture expression source until the matching }
+                    -- Track brace depth and skip over string literals so
+                    -- a } inside a string doesn't close the expression early.
+                    local exprStart = self.pos
+                    local depth = 1
+                    while not self:atEnd() and depth > 0 do
+                        local ec = self:cur()
+                        if ec == '"' or ec == "'" then
+                            -- Skip quoted string literal verbatim
+                            local q = self:advance()
+                            while not self:atEnd() do
+                                local sc = self:advance()
+                                if sc == "\\" then
+                                    self:advance()  -- skip escaped char
+                                elseif sc == q then
+                                    break
+                                end
+                            end
+                        elseif ec == "{" then
+                            depth = depth + 1
+                            self:advance()
+                        elseif ec == "}" then
+                            depth = depth - 1
+                            if depth > 0 then
+                                self:advance()
+                            end
+                            -- depth == 0: stop WITHOUT consuming the }
+                        else
+                            self:advance()
+                        end
+                    end
+
+                    local exprSource = string.sub(self.source, exprStart, self.pos - 1)
+                    if not self:match("}") then
+                        self:error("missing '}' in interpolated string")
+                    end
+                    parts[#parts + 1] = { kind = "expr", source = exprSource }
+
+                elseif ch == "\\" then
+                    -- Escape sequence (same as quoted strings)
+                    self:advance()
+                    local e = self:advance()
+                    if ESCAPE_MAP[e] then
+                        buf[#buf + 1] = ESCAPE_MAP[e]
+                    elseif e == "x" then
+                        local h1 = self:advance()
+                        local h2 = self:advance()
+                        local n  = tonumber(h1 .. h2, 16)
+                        if not n then self:error("invalid hex escape") end
+                        buf[#buf + 1] = string.char(n)
+                    else
+                        buf[#buf + 1] = e
+                    end
+
+                else
+                    buf[#buf + 1] = self:advance()
+                end
+            end
+
+            self:emit("ISTRING", parts, line, col)
 
         -- ── String: long bracket [=*[ ─────────────────────────────
         elseif c == "[" then

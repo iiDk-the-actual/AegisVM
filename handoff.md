@@ -22,7 +22,14 @@ Repo: `AegisLua/AegisVM` | Branch: `main` | Toolchain: Rojo 7.7.0-rc.1 via Aftma
 
 All core language features are implemented and working:
 - Full Luau grammar (closures, metatables, metamethods, coroutines, varargs, goto/break/continue via signals)
+- `class`/`extends` declarations, `<const>` enforcement, interpolated strings, `if`-expressions, `__iter` metamethod
+- `local x <const> = v` - enforced at runtime via Scope.consts; reassignment raises RuntimeError
+- `class Foo [extends Bar] ... end` - creates class table with `__index = classTable`; `extends` sets metatable chain
+- Backtick strings `` `Hello {name}!` `` - fully evaluated including nested expressions
+- `if cond then a else b` - expression form (not statement)
+- `__iter` metamethod on tables in generic for loops
 - Sandboxed stdlib: core globals, string/table/math/bit32/utf8/coroutine/task/buffer/debug/os/Roblox types
+- `table.freeze`/`table.isfrozen`, `math.noise` added to stdlib
 - `getfenv`/`setfenv` present as sandbox-safe proxies (operate on AegisVM global scope, never expose host)
 - `loadstring`/`load` re-enter the interpreter pipeline
 - `game:GetObjects` proxied through WebRbxmParser (Libraries folder)
@@ -37,9 +44,14 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
-- **`src/shared` renamed to `src/server`** (`76ed71c`) - directory rename plus all references updated across both project JSONs, CLAUDE.md, FILEMAP.md, README.md, handoff.md.
-- **NewScript library extracted** (`b3ed2e9`) - `makeAegisScript` moved out of WebRbxmParser into a new `Libraries/NewScript.luau` module (`NewScript.new(opts)`). The three template scripts (ScriptTemplate, LocalScriptTemplate, ModuleScriptTemplate) moved under NewScript. WebRbxmParser now requires and calls NewScript. Libraries.luau exposes it as `Libraries.NewScript`. Template scripts switched from `Enabled=false` to `Disabled=true` in both project JSONs.
-- **Example require paths fixed** (`d6cb1bd`) - all example code updated from `ReplicatedStorage.Aegis` to `game:GetService("ServerScriptService").Aegis` in README.md and Aegis.luau header comment.
+- **`<const>` enforcement** - `Scope.luau` now tracks a `consts` table. `declareLocal(name, value, isConst)` accepts an optional third argument. `set()` raises a RuntimeError on assignment to a const variable. Runtime `LocalDeclaration` handler passes `node.attribs[i] == "const"` as the flag.
+- **`class` / `extends` keyword** - Lexer adds `class` and `extends` to KEYWORDS. Parser adds `ClassDeclaration` AST node with `name`, `superName`, `fields` (name + optional default expr), and `methods` (name + FunctionBody). Runtime creates a class table with `__index = classTable`, optionally sets `setmetatable(classTable, {__index = parent})` for inheritance, evaluates field defaults, and binds methods as closures.
+- **Interpolated strings** - Lexer handles backtick strings `` `Hello {name}!` `` and emits `ISTRING` tokens containing `{kind="text"/"expr", ...}` part arrays. Parser re-tokenizes and re-parses each expr segment using a sub-Parser. Runtime evaluates and concatenates via the sandbox `tostring`.
+- **`if`-then-else expressions** - Parser handles `if cond then a [elseif cond then b]* else c` as a primary expression (`IfExpr` node). Runtime evaluates the correct branch.
+- **`__iter` metamethod** - GenericFor in Runtime now checks for `__iter` in a table's metatable when a single table is passed as the iterator, following Luau semantics.
+- **`table.freeze`/`table.isfrozen`, `math.noise`** - added to StdLib (forwarded from host, with fallback stubs).
+
+All changes in this session (commit pending).
 
 ---
 
@@ -49,7 +61,8 @@ From `TASKS.md`, in priority order:
 
 1. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Roblox Studio. Requires manual Studio testing.
 2. **T-02** - AegisVM-aware `debug.traceback`: currently shows host Runtime stack, not guest code frames. Requires Runtime to maintain a call-stack log of `(chunkName, line)` entries for interpreter frames. Most impactful remaining feature gap.
-3. **T-07** - `__ipairs` metamethod support for `ipairs`. Low priority.
+3. **`<close>` attribute** - `local x <close> = value` is parsed but not enforced. Implementing it requires calling `__close` on scope exit for any block exit path (break, continue, return, error). Non-trivial.
+4. **T-07** - `__ipairs` metamethod support for `ipairs`. Low priority.
 
 ---
 

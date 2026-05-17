@@ -148,6 +148,42 @@ function Runtime:evalMulti(node, scope)
     if kind == "NilLiteral"     then return nil end
     if kind == "TypeCast"       then return self:evalMulti(node.expr, scope) end
 
+    -- ── Interpolated string: `Hello {name}!` ─────────────────────
+    if kind == "InterpolatedString" then
+        local sandboxTostr = self.globalScope:get("tostring")
+        local parts = {}
+        for _, part in ipairs(node.parts) do
+            if part.kind == "text" then
+                parts[#parts + 1] = part.value
+            else
+                local val = self:eval(part.expr, scope)
+                local s
+                if type(sandboxTostr) == "function" then
+                    s = sandboxTostr(val)
+                elseif type(sandboxTostr) == "table" and sandboxTostr.__fn then
+                    s = self:callFunction(sandboxTostr, { val })
+                else
+                    s = tostring(val)
+                end
+                parts[#parts + 1] = tostring(s)
+            end
+        end
+        return table.concat(parts)
+    end
+
+    -- ── if-then-else expression: if cond then a else b ────────────
+    if kind == "IfExpr" then
+        if isTruthy(self:eval(node.cond, scope)) then
+            return self:evalMulti(node.thenVal, scope)
+        end
+        for _, ei in ipairs(node.elseIfs) do
+            if isTruthy(self:eval(ei.cond, scope)) then
+                return self:evalMulti(ei.value, scope)
+            end
+        end
+        return self:evalMulti(node.elseVal, scope)
+    end
+
     -- ── Vararg ────────────────────────────────────────────────────
     if kind == "VarArg" then
         local va = scope:get("...")
@@ -712,7 +748,8 @@ function Runtime:execStat(node, scope)
         end
         local flat = flattenExprList(results)
         for i, name in ipairs(node.names) do
-            scope:declareLocal(name, flat[i])
+            local isConst = node.attribs[i] == "const"
+            scope:declareLocal(name, flat[i], isConst)
         end
         return
 
@@ -822,6 +859,25 @@ function Runtime:execStat(node, scope)
         end
         local flat = flattenExprList(results)
 
+        -- Luau __iter metamethod: if a single table is passed as the
+        -- iterator and it has __iter in its metatable, call __iter(table)
+        -- to obtain (iterFn, state, control).
+        if #node.iters == 1 then
+            local first = flat[1]
+            if type(first) == "table" and not first.__fn then
+                local mt = getmetatable(first)
+                if mt then
+                    local iterMM = rawget(mt, "__iter")
+                    if iterMM then
+                        local mr = self:callFunctionMulti(iterMM, { first }, node.line)
+                        local newFlat = {}
+                        for i = 1, mr.n do newFlat[i] = mr[i] end
+                        flat = newFlat
+                    end
+                end
+            end
+        end
+
         local iterFn  = flat[1]   -- iterator function
         local state   = flat[2]   -- state
         local control = flat[3]   -- initial control variable
@@ -908,6 +964,52 @@ function Runtime:execStat(node, scope)
 
     elseif kind == "LabelStatement" then
         -- Labels are handled during block execution (see execBlock)
+        return
+
+    -- ── Class declaration ─────────────────────────────────────────
+    -- class Foo [extends Bar]
+    --   field = default     -> classTable.field = default
+    --   function method(...) -> classTable.method = closure
+    -- end
+    -- Declares `Foo` as a local in the current scope.
+    -- Sets classTable.__index = classTable so that instances created with
+    -- setmetatable({}, Foo) automatically inherit class methods.
+    elseif kind == "ClassDeclaration" then
+        local classTable = {}
+        classTable.__index = classTable
+
+        -- Declare the class name before executing the body so that methods
+        -- can reference the class (e.g. inside Animal.new, `Animal` resolves).
+        scope:declareLocal(node.name, classTable)
+
+        -- Inheritance: setmetatable(classTable, {__index = ParentClass})
+        -- This lets classTable.parentMethod resolve via the parent's table.
+        if node.superName then
+            local parent = scope:get(node.superName)
+            if type(parent) == "table" then
+                setmetatable(classTable, { __index = parent })
+            else
+                self:runtimeError(
+                    "class '" .. node.name .. "' extends unknown class '"
+                        .. node.superName .. "'",
+                    node.line
+                )
+            end
+        end
+
+        -- Field defaults: stored on the class table so instances inherit them
+        -- via __index unless the instance overrides them.
+        for _, field in ipairs(node.fields) do
+            if field.default ~= nil then
+                classTable[field.name] = self:eval(field.default, scope)
+            end
+        end
+
+        -- Methods: each becomes a closure bound to the class table.
+        for _, method in ipairs(node.methods) do
+            classTable[method.name] = self:makeClosure(method.body, scope)
+        end
+
         return
 
     -- ── Type alias (no-op at runtime) ────────────────────────────
