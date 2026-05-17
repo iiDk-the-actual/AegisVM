@@ -110,6 +110,27 @@ local function isTruthy(v)
     return v ~= nil and v ~= false
 end
 
+-- Try a binary or unary operation at the raw Lua level so that Roblox
+-- userdata types (Vector3, CFrame, etc.) can handle their own locked native
+-- metamethods, which are invisible to getmetatable/rawget.
+-- Returns ok, result.
+local function tryNativeBinop(op, l, r)
+    if op == "+"  then return pcall(function() return l +  r end)
+    elseif op == "-"  then return pcall(function() return l -  r end)
+    elseif op == "*"  then return pcall(function() return l *  r end)
+    elseif op == "/"  then return pcall(function() return l /  r end)
+    elseif op == "//" then return pcall(function() return l // r end)
+    elseif op == "%"  then return pcall(function() return l %  r end)
+    elseif op == "^"  then return pcall(function() return l ^  r end)
+    elseif op == ".." then return pcall(function() return l .. r end)
+    elseif op == "<"  then return pcall(function() return l <  r end)
+    elseif op == "<=" then return pcall(function() return l <= r end)
+    elseif op == ">"  then return pcall(function() return l >  r end)
+    elseif op == ">=" then return pcall(function() return l >= r end)
+    end
+    return false, nil
+end
+
 -- ─── Metatable helpers ────────────────────────────────────────────────
 
 local function getMetamethod(tbl, event)
@@ -543,6 +564,10 @@ function Runtime:evalUnary(node, scope)
         if type(v) == "number" then return -v end
         local r, ok = callMeta(self, v, "__unm")
         if ok then return singleOf(r) end
+        if type(v) == "userdata" then
+            local nok, nres = pcall(function() return -v end)
+            if nok then return nres end
+        end
         self:runtimeError("attempt to perform arithmetic on a " .. type(v), node.line)
 
     elseif op == "#" then
@@ -636,6 +661,12 @@ function Runtime:evalBinary(node, scope)
         local res, ok = callMeta(self, l, mmName, r)
         if not ok then res, ok = callMeta(self, r, mmName, l) end
         if ok then return singleOf(res) end
+        -- Roblox userdata (Vector3, CFrame, etc.) use locked native metamethods
+        -- invisible to getmetatable; fall back to raw Lua operators via pcall.
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop(op, l, r)
+            if nok then return nres end
+        end
         self:runtimeError(
             string.format("attempt to perform arithmetic on a %s value", type(l)),
             node.line
@@ -651,6 +682,10 @@ function Runtime:evalBinary(node, scope)
         local res, ok = callMeta(self, l, "__concat", r)
         if not ok then res, ok = callMeta(self, r, "__concat", l) end
         if ok then return singleOf(res) end
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop("..", l, r)
+            if nok then return nres end
+        end
         self:runtimeError(
             "attempt to concatenate a " .. type(l) .. " value",
             node.line
@@ -681,15 +716,23 @@ function Runtime:evalBinary(node, scope)
         if type(l) == "string" and type(r) == "string" then return l < r end
         local res, ok = callMeta(self, l, "__lt", r)
         if ok then return isTruthy(singleOf(res)) end
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop("<", l, r)
+            if nok then return nres end
+        end
         self:runtimeError("attempt to compare two " .. type(l) .. " values", node.line)
     end
 
     if op == ">" then
         if type(l) == "number" and type(r) == "number" then return l > r end
         if type(l) == "string" and type(r) == "string" then return l > r end
-        -- Luau: a > b ≡ b < a
+        -- Luau: a > b equivalent to b < a
         local res, ok = callMeta(self, r, "__lt", l)
         if ok then return isTruthy(singleOf(res)) end
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop(">", l, r)
+            if nok then return nres end
+        end
         self:runtimeError("attempt to compare two " .. type(l) .. " values", node.line)
     end
 
@@ -698,9 +741,13 @@ function Runtime:evalBinary(node, scope)
         if type(l) == "string" and type(r) == "string" then return l <= r end
         local res, ok = callMeta(self, l, "__le", r)
         if ok then return isTruthy(singleOf(res)) end
-        -- Fallback: a <= b ≡ not (b < a)
+        -- Fallback: a <= b equivalent to not (b < a)
         res, ok = callMeta(self, r, "__lt", l)
         if ok then return not isTruthy(singleOf(res)) end
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop("<=", l, r)
+            if nok then return nres end
+        end
         self:runtimeError("attempt to compare two " .. type(l) .. " values", node.line)
     end
 
@@ -711,6 +758,10 @@ function Runtime:evalBinary(node, scope)
         if ok then return isTruthy(singleOf(res)) end
         res, ok = callMeta(self, l, "__lt", r)
         if ok then return not isTruthy(singleOf(res)) end
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop(">=", l, r)
+            if nok then return nres end
+        end
         self:runtimeError("attempt to compare two " .. type(l) .. " values", node.line)
     end
 
@@ -1229,6 +1280,10 @@ function Runtime:evalBinaryValues(op, l, r, line)
         local res, ok = callMeta(self, l, mmName, r)
         if not ok then res, ok = callMeta(self, r, mmName, l) end
         if ok then return singleOf(res) end
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop(op, l, r)
+            if nok then return nres end
+        end
         self:runtimeError(
             string.format("attempt to perform arithmetic on a %s value", type(l)),
             line
@@ -1243,6 +1298,10 @@ function Runtime:evalBinaryValues(op, l, r, line)
         local res, ok = callMeta(self, l, "__concat", r)
         if not ok then res, ok = callMeta(self, r, "__concat", l) end
         if ok then return singleOf(res) end
+        if type(l) == "userdata" or type(r) == "userdata" then
+            local nok, nres = tryNativeBinop("..", l, r)
+            if nok then return nres end
+        end
         self:runtimeError("attempt to concatenate a " .. type(l) .. " value", line)
     end
 
