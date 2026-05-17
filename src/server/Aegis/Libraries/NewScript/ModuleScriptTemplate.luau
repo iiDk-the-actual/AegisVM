@@ -1,2 +1,2 @@
 local _aegis = require(script:FindFirstChild("_aegis"))
-return _aegis.run(script:GetAttribute("Source"))
+return _aegis.run(script:GetAttribute("Source"), script.Name, { globals = { script = script } })
