@@ -141,20 +141,29 @@ local function buildCore(scope, runtime)
     end
 
     -- Check if v is a Roblox ModuleScript instance.
+    -- Uses .ClassName (a plain property) instead of :IsA() to avoid method-call
+    -- security restrictions in some Roblox contexts.
     local function isModuleScript(v)
-        if type(v) ~= "userdata" and type(v) ~= "table" then return false end
-        local ok, result = pcall(function() return typeof(v) == "Instance" and v:IsA("ModuleScript") end)
-        return ok and result
+        if type(v) ~= "userdata" then return false end
+        local ok, cls = pcall(function() return v.ClassName end)
+        return ok and cls == "ModuleScript"
     end
 
     -- Run a ModuleScript's source through the AegisVM pipeline and cache the result.
+    -- Falls back to native require when .Source is empty or unreadable (live games
+    -- restrict source access; Studio allows it).
     local function requireModule(instance)
         if moduleCache[instance] ~= nil then
             return moduleCache[instance]
         end
         local nameOk, fullName = pcall(function() return instance:GetFullName() end)
         local chunkName = nameOk and fullName or "ModuleScript"
-        local source = instance.Source
+        -- .Source is only readable in Studio security context.
+        -- In live games it returns "" - fall back to native require in that case.
+        local srcOk, source = pcall(function() return instance.Source end)
+        if not srcOk or source == nil or source == "" then
+            return require(instance)
+        end
         -- Tokenise
         local tokens
         local tokOk, tokErr = pcall(function()
