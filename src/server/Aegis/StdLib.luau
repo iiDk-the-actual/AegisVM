@@ -108,18 +108,55 @@ local function buildCore(scope, runtime)
     end))
 
     -- require
-    -- When REQUIRE_FETCH_NUMERIC is enabled and v is a number, fetch the asset
-    -- via WebRbxmParser, find the first child named "MainModule", and require it.
-    -- Otherwise fall through to native require.
-    scope:defineGlobal("require", native(function(v)
-        if Constants.REQUIRE_FETCH_NUMERIC and type(v) == "number" then
-            local objects = InsertService:LoadAsset(v)
-            for _, obj in ipairs(objects) do
-                if obj.Name == "MainModule" then
-                    return require(obj)
+    -- When REQUIRE_FETCH_NUMERIC is enabled:
+    --   require(number)  - fetches via InsertService:LoadAsset, finds MainModule, requires it.
+    --   require(string)  - if the string starts with http:// or https://, fetches via
+    --                      InsertService:GetObjects(url), finds MainModule, requires it.
+    -- A verbosity-dependent message is printed before fetching, mirroring Roblox's format.
+    -- Native require is used for all other argument types.
+    local function requireFetchLog(label)
+        if Constants.VERBOSITY <= Constants.VERBOSITY_SILENT then return end
+        local co = coroutine.running() or "main"
+        local stack = runtime.callStacks[co] or {}
+        local msg = "Requiring asset " .. label .. "."
+        if Constants.VERBOSITY >= Constants.VERBOSITY_STANDARD and #stack > 0 then
+            local parts = { msg, "Callstack:" }
+            for i = #stack, 1, -1 do
+                local frame = stack[i]
+                local entry = frame.chunkName .. ", line " .. frame.line
+                if frame.fnName then
+                    entry = entry .. " - " .. frame.fnName
                 end
+                parts[#parts + 1] = entry
             end
-            error("require: no MainModule found in asset " .. tostring(v), 2)
+            warn(table.concat(parts, "\n"))
+        else
+            warn(msg)
+        end
+    end
+
+    scope:defineGlobal("require", native(function(v)
+        if Constants.REQUIRE_FETCH_NUMERIC then
+            if type(v) == "number" then
+                requireFetchLog(tostring(v))
+                local objects = InsertService:LoadAsset(v)
+                for _, obj in ipairs(objects) do
+                    if obj.Name == "MainModule" then
+                        return require(obj)
+                    end
+                end
+                error("require: no MainModule found in asset " .. tostring(v), 2)
+            elseif type(v) == "string"
+                and (v:sub(1, 7) == "http://" or v:sub(1, 8) == "https://") then
+                requireFetchLog(v)
+                local objects = InsertService:GetObjects(v)
+                for _, obj in ipairs(objects) do
+                    if obj.Name == "MainModule" then
+                        return require(obj)
+                    end
+                end
+                error("require: no MainModule found at " .. v, 2)
+            end
         end
         return require(v)
     end))
