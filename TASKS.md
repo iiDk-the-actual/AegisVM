@@ -15,7 +15,6 @@ _Nothing currently claimed._
 
 | ID | Description | Status | Notes / Dependencies |
 |----|-------------|--------|----------------------|
-| T-10 | Validate api.aegislua.xyz endpoint with WebRbxmParser | todo | CONVERT_BASE_URL changed to https://api.aegislua.xyz/rbxm?url= (AegisLua/API). Confirm the endpoint is live and game:GetObjects still resolves rbxm assets correctly. |
 
 ---
 
@@ -33,6 +32,7 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 |----|-------------|--------|
 | T-08 | Validate `buffer` library in Studio | `ae221dc` |
 | T-09 | Validate `task.*` and `spawn`/`delay` closure wrapping in Studio | `ae221dc` |
+| T-10 | Validate api.aegislua.xyz endpoint with WebRbxmParser | verified by user |
 | #21 | Async text filter no longer sets raw text before filtered result | `ae221dc` |
 | #22 | Mouse data is now sent immediately on Button1/2 Down/Up events | this session |
 | #23 | Mouse.KeyDown and Mouse.KeyUp replicated via existing InputBegan/Ended forwarding | this session |
