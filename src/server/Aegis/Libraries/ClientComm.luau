@@ -56,6 +56,7 @@ local function ensureSetup(player)
     if not comms:FindFirstChild("ClientAgent") then
         local agent = ClientAgent:Clone()
         agent.Parent = comms
+        agent.Disabled = false
     end
 
     -- RemoteEvent: server fires to show a notification toast on the client
