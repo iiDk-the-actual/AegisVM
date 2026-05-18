@@ -6,7 +6,7 @@
 local Constants = {}
 
 -- Interpreter version string exposed to guest code as _AEGIS_VERSION.
-Constants.VERSION = "5"
+Constants.VERSION = "6"
 
 -- Verbosity levels for interpreter error output.
 -- Controls how much detail appears in runtime error messages and
