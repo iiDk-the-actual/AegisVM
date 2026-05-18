@@ -513,7 +513,10 @@ function Runtime:callFunctionMulti(fn, args, line)
                         -- Real errors are re-thrown so that guest pcall/xpcall
                         -- can catch them. For fire-and-forget callbacks (e.g.
                         -- Signal:Connect) Roblox will surface the error itself.
-                        error(err, 0)
+                        -- tostring() is required: if err is an Error table object
+                        -- Roblox cannot print non-string errors and shows the
+                        -- generic "Error occurred, no output from Luau." instead.
+                        error(tostring(err), 0)
                     end
                     return table.unpack(rets, 2, rets.n)
                 end
