@@ -32,6 +32,13 @@
           },
           "WebRbxmParser": {
             "$path": "src/server/Aegis/Libraries/WebRbxmParser.luau"
+          },
+          "ClientComm": {
+            "$path": "src/server/Aegis/Libraries/ClientComm.luau",
+            "ClientAgent": {
+              "$path": "src/server/Aegis/Libraries/ClientComm/ClientAgent.client.luau",
+              "$properties": { "Disabled": { "Bool": true } }
+            }
           }
         }
       }

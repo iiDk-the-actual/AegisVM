@@ -1183,14 +1183,192 @@ local function buildRoblox(scope, runtime)
         return ClientComm.getUserInputService(owner)
     end
 
-    -- Helper: return owner's PlayerGui as CoreGui replacement.
-    local function getCoreGui()
-        local owner = getOwnerReal()
-        if owner then
-            local ok, pg = pcall(function() return owner.PlayerGui end)
-            if ok and pg then return pg end
+    -- CoreGui emulation proxy - built once per sandbox and cached.
+    --
+    -- Always returned for game:GetService("CoreGui") regardless of whether
+    -- CLIENT_COMMUNICATION is enabled, so guest scripts never receive the real
+    -- CoreGui (which would fail on most API calls from a server Script).
+    --
+    -- When CLIENT_COMMUNICATION is on and an owner is resolved, the proxy
+    -- forwards notification and SetCore/ToggleCoreGui calls to the client
+    -- via ClientComm RemoteEvents. Otherwise those calls are silent no-ops.
+    local cachedCoreGuiProxy = nil
+
+    local function buildCoreGuiProxy()
+        -- Fire a notification to the owner's client (if resolved and comms active).
+        local function fireNotif(title, text, icon, duration)
+            if not Constants.CLIENT_COMMUNICATION then return end
+            local owner = getOwnerReal()
+            if owner then
+                ClientComm.sendNotification(owner, title, text, icon, duration)
+            end
         end
-        return realGame:GetService("CoreGui")
+
+        -- Forward a SetCore / ToggleCoreGui action to the owner's client.
+        local function fireCoreAction(action, a1, a2)
+            if not Constants.CLIENT_COMMUNICATION then return end
+            local owner = getOwnerReal()
+            if owner then
+                ClientComm.sendCoreGuiAction(owner, action, a1, a2)
+            end
+        end
+
+        -- Stub BindableEvent-like proxy for RobloxGui children that scripts may
+        -- index but not meaningfully use. Provides .Fire() no-op and .Event signal.
+        local function makeStubSignal(name)
+            local be = Instance.new("BindableEvent")
+            return setmetatable({}, {
+                __index = function(_, k)
+                    if k == "Fire"      then return function() end
+                    elseif k == "Event" then return be.Event
+                    elseif k == "Name"  then return name
+                    elseif k == "ClassName" then return "BindableEvent"
+                    end
+                    return nil
+                end,
+            })
+        end
+
+        -- SendNotification proxy.
+        -- :Fire(title, text, icon, duration) sends a toast notification to the
+        -- client and also fires the backing BindableEvent for server-side listeners.
+        -- .Event is a real RBXScriptSignal so :Connect() works on the server too.
+        local snBE = Instance.new("BindableEvent")
+        local sendNotifProxy = setmetatable({}, {
+            __index = function(_, k)
+                if k == "Fire" then
+                    return function(_, title, text, icon, duration)
+                        snBE:Fire(title, text, icon, duration)
+                        fireNotif(title, text, icon, duration)
+                    end
+                elseif k == "Event"     then return snBE.Event
+                elseif k == "Name"      then return "SendNotification"
+                elseif k == "ClassName" then return "BindableEvent"
+                end
+                return nil
+            end,
+        })
+
+        -- RobloxGui proxy: emulates the ScreenGui normally found inside CoreGui.
+        -- Provides SendNotification and stubs for other commonly-accessed children.
+        local robloxGuiChildren = {
+            SendNotification    = sendNotifProxy,
+            SettingsShowSignal  = makeStubSignal("SettingsShowSignal"),
+            PlayerNameDisplayed = makeStubSignal("PlayerNameDisplayed"),
+        }
+
+        local robloxGuiProxy = setmetatable({}, {
+            __index = function(_, k)
+                if robloxGuiChildren[k] then return robloxGuiChildren[k] end
+                if k == "Name"      then return "RobloxGui"
+                elseif k == "ClassName" then return "ScreenGui"
+                elseif k == "Enabled"   then return false
+                elseif k == "WaitForChild" then
+                    return function(_, name, _timeout)
+                        return robloxGuiChildren[name]
+                    end
+                elseif k == "FindFirstChild" then
+                    return function(_, name) return robloxGuiChildren[name] end
+                elseif k == "GetChildren" then
+                    return function(_)
+                        local out = {}
+                        for _, v in pairs(robloxGuiChildren) do
+                            out[#out + 1] = v
+                        end
+                        return out
+                    end
+                end
+                return nil
+            end,
+            __tostring = function() return "RobloxGui" end,
+        })
+
+        -- State storage for SetCore / GetCore / ToggleCoreGui / GetCoreGuiEnabled
+        local setCoreValues  = {}          -- [string] = value
+        local coreGuiEnabled = {}          -- [tostring(coreGuiEnum)] = bool
+
+        local knownChildren = { RobloxGui = robloxGuiProxy }
+
+        local coreGuiProxy = setmetatable({}, {
+            __index = function(_, k)
+                -- Instance navigation
+                if k == "WaitForChild" or k == "FindFirstChild" then
+                    return function(_, name, _timeout)
+                        return knownChildren[name]
+                    end
+                elseif k == "GetChildren" then
+                    return function(_)
+                        local out = {}
+                        for _, v in pairs(knownChildren) do out[#out + 1] = v end
+                        return out
+                    end
+                elseif k == "IsA" then
+                    return function(_, cls)
+                        return cls == "CoreGui" or cls == "Instance"
+                    end
+                elseif k == "GetFullName" then
+                    return function(_) return "CoreGui" end
+                -- CoreGui API
+                elseif k == "SetCore" then
+                    return function(_, coreGuiType, value)
+                        if type(coreGuiType) ~= "string" then return end
+                        setCoreValues[coreGuiType] = value
+                        if coreGuiType == "SendNotification" and type(value) == "table" then
+                            -- Alternative notification form: SetCore("SendNotification", {...})
+                            local title    = value.Title    or value[1] or ""
+                            local text     = value.Text     or value[2] or ""
+                            local icon     = value.Icon     or value[3] or ""
+                            local duration = value.Duration or value[4] or 5
+                            fireNotif(title, text, icon, duration)
+                        else
+                            fireCoreAction("SetCore", coreGuiType, value)
+                        end
+                    end
+                elseif k == "GetCore" then
+                    return function(_, coreGuiType)
+                        return setCoreValues[coreGuiType]
+                    end
+                elseif k == "GetCoreGuiEnabled" then
+                    return function(_, coreGuiType)
+                        local key = tostring(coreGuiType)
+                        if coreGuiEnabled[key] ~= nil then return coreGuiEnabled[key] end
+                        return true
+                    end
+                elseif k == "ToggleCoreGui" then
+                    return function(_, coreGuiType, enabled)
+                        local key = tostring(coreGuiType)
+                        coreGuiEnabled[key] = enabled
+                        fireCoreAction("ToggleCoreGui", coreGuiType, enabled)
+                    end
+                elseif k == "SetCoreGuiEnabled" then
+                    -- Some scripts call this on CoreGui directly instead of StarterGui
+                    return function(_, coreGuiType, enabled)
+                        local key = tostring(coreGuiType)
+                        coreGuiEnabled[key] = enabled
+                        fireCoreAction("ToggleCoreGui", coreGuiType, enabled)
+                    end
+                -- Direct child access by property name (e.g. CoreGui.RobloxGui)
+                elseif knownChildren[k] then
+                    return knownChildren[k]
+                -- Identity fields
+                elseif k == "Name"      then return "CoreGui"
+                elseif k == "ClassName" then return "CoreGui"
+                end
+                return nil
+            end,
+            __newindex = function() end,
+            __tostring = function() return "CoreGui" end,
+        })
+
+        return coreGuiProxy
+    end
+
+    -- Return the cached CoreGui proxy, building it the first time it is needed.
+    local function getCoreGui()
+        if not cachedCoreGuiProxy then
+            cachedCoreGuiProxy = buildCoreGuiProxy()
+        end
+        return cachedCoreGuiProxy
     end
 
     -- ── Game proxy ───────────────────────────────────────────────────
@@ -1211,6 +1389,12 @@ local function buildRoblox(scope, runtime)
                 end
             elseif key == "GetService" then
                 return function(_, serviceName)
+                    -- CoreGui is always proxied: the real CoreGui is not safely
+                    -- accessible from a server Script and guest scripts should
+                    -- never receive it directly.
+                    if serviceName == "CoreGui" then
+                        return getCoreGui()
+                    end
                     if Constants.CLIENT_COMMUNICATION then
                         if serviceName == "RunService" then
                             return runServiceProxy
@@ -1218,19 +1402,19 @@ local function buildRoblox(scope, runtime)
                             return playersProxy
                         elseif serviceName == "UserInputService" then
                             return getUIS() or realGame:GetService("UserInputService")
-                        elseif serviceName == "CoreGui" then
-                            return getCoreGui()
                         end
                     end
                     return realGame:GetService(serviceName)
                 end
             end
 
-            -- ── CLIENT_COMMUNICATION property shortcuts ───────────────────
+            -- ── Property shortcuts ───────────────────────────────────────
+            -- CoreGui is always proxied (no CLIENT_COMMUNICATION guard needed).
+            if key == "CoreGui" then
+                return getCoreGui()
+            end
             if Constants.CLIENT_COMMUNICATION then
-                if key == "CoreGui" then
-                    return getCoreGui()
-                elseif key == "Players" then
+                if key == "Players" then
                     return playersProxy
                 end
             end

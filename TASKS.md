@@ -33,6 +33,7 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 
 | ID | Description | Commit |
 |----|-------------|--------|
+| - | CoreGui emulation: RobloxGui proxy with SendNotification, SetCore, GetCore, ToggleCoreGui, SetCoreGuiEnabled; notification toast UI on client; ClientComm extended with NotificationEvent + CoreGuiAction RemoteEvents | this session |
 | T-01 | Update FILEMAP.md - StdLib builders, WebRbxmParser path | `df9f46d` |
 | T-03 | Wrap deprecated `spawn`/`delay` globals for interpreter closures | `df9f46d` |
 | T-05 | `table.sort` signal propagation - resolved as won't-fix; signals propagate naturally, pathological comparators are out of scope | - |

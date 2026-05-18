@@ -58,6 +58,34 @@ local function ensureSetup(player)
         agent.Parent = comms
     end
 
+    -- RemoteEvent: server fires to show a notification toast on the client
+    local notifEvent = comms:FindFirstChild("NotificationEvent")
+    if not notifEvent then
+        notifEvent = Instance.new("RemoteEvent")
+        notifEvent.Name = "NotificationEvent"
+        notifEvent.Parent = comms
+    end
+
+    -- RemoteEvent: server fires to apply SetCore or ToggleCoreGui on the client
+    local coreGuiAction = comms:FindFirstChild("CoreGuiAction")
+    if not coreGuiAction then
+        coreGuiAction = Instance.new("RemoteEvent")
+        coreGuiAction.Name = "CoreGuiAction"
+        coreGuiAction.Parent = comms
+    end
+
+    -- Hidden RobloxGui ScreenGui in PlayerGui. Exists so that instance-hierarchy
+    -- searches (FindFirstChild / WaitForChild on PlayerGui) can find a child
+    -- named "RobloxGui". Actual emulated behaviour comes from the CoreGui proxy
+    -- built in StdLib (sendNotifProxy etc.).
+    if not playerGui:FindFirstChild("RobloxGui") then
+        local robloxGui = Instance.new("ScreenGui")
+        robloxGui.Name         = "RobloxGui"
+        robloxGui.Enabled      = false
+        robloxGui.ResetOnSpawn = false
+        robloxGui.Parent       = playerGui
+    end
+
     -- ── Mouse state ──────────────────────────────────────────────────
 
     local ms = {
@@ -193,7 +221,7 @@ local function ensureSetup(player)
 
     -- ── Finalise ─────────────────────────────────────────────────────
 
-    local state = { comms = comms, mouse = mouse, uis = uis }
+    local state = { comms = comms, mouse = mouse, uis = uis, notifEvent = notifEvent, coreGuiAction = coreGuiAction }
     playerState[player] = state
 
     -- Remove state when the player leaves the game
@@ -225,6 +253,22 @@ end
 function ClientComm.getUserInputService(player)
     local state = ensureSetup(player)
     return state and state.uis
+end
+
+-- Fire a notification toast to the player's client. Silently ignored if
+-- _AegisComm is not yet set up for this player.
+function ClientComm.sendNotification(player, title, text, icon, duration)
+    local state = playerState[player]
+    if not state then return end
+    state.notifEvent:FireClient(player, title, text, icon, duration)
+end
+
+-- Send a CoreGui action (SetCore or ToggleCoreGui) to the player's client
+-- so that StarterGui can apply the change locally.
+function ClientComm.sendCoreGuiAction(player, action, a1, a2)
+    local state = playerState[player]
+    if not state then return end
+    state.coreGuiAction:FireClient(player, action, a1, a2)
 end
 
 return ClientComm

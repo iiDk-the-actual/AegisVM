@@ -44,10 +44,18 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
-- **Vector3 "vector" type support** (commit `5a48cf4`) - Roblox now returns `type(Vector3.new()) == "vector"` in newer builds instead of `"userdata"`. Added `or type(...) == "vector"` to all arithmetic, comparison, unary, tableGet, tableSet, and callFunctionMulti guards so Vector3 operations fall through to `tryNativeBinop` correctly.
-- **Per-coroutine call stacks** (commit `ddca1c6`) - `self.callStack` (shared array) replaced with `self.callStacks` keyed by `coroutine.running()`. Fixes "attempt to index nil with 'fnName'" crash caused by holes in the shared array when coroutines yield inside pcall and interleave frame pushes/pops.
-- **Verbosity levels + coroutine/pcall error handling** (commit `c6b8dbd`) - `Constants.luau` adds VERBOSITY_SILENT/BRIEF/STANDARD/VERBOSE. `Error:__tostring` branches on verbosity. `StdLib.luau` wrapFn in buildCoroutine/buildTask uses `table.pack(...)` and pcall with signal swallow + real-error rethrow.
-- **CONVERT_BASE_URL update** (commit `cfc5bae`) - moved rbxm service from `convert.iidk.online` to `api.aegislua.xyz`. Source repo updated to `AegisLua/API`.
+- **CoreGui emulation** (this session) - `game:GetService("CoreGui")` now always returns a proxy table (never the real CoreGui). The proxy provides:
+  - `CoreGui:WaitForChild("RobloxGui")` / `FindFirstChild` / `GetChildren` / `.RobloxGui` - returns RobloxGui proxy
+  - `RobloxGui.SendNotification:Fire(title, text, icon, duration)` - fires a toast notification on the client
+  - `RobloxGui.SendNotification.Event` - real BindableEvent signal for server-side Connect()
+  - `RobloxGui.SettingsShowSignal` / `PlayerNameDisplayed` - stub signals (no-op Fire, real Event)
+  - `CoreGui:SetCore(name, value)` - stores value; routes "SendNotification" table form to fireNotif; others via CoreGuiAction RemoteEvent
+  - `CoreGui:GetCore(name)` - returns stored value
+  - `CoreGui:GetCoreGuiEnabled(coreGuiEnum)` - returns stored bool, defaults true
+  - `CoreGui:ToggleCoreGui(coreGuiEnum, enabled)` / `SetCoreGuiEnabled(...)` - stores + sends to client
+  - `CoreGui:IsA("CoreGui")` / `GetFullName()` - identity methods
+- **ClientComm extended** - Two new RemoteEvents added to `_AegisComm`: `NotificationEvent` (server->client notification) and `CoreGuiAction` (server->client SetCore/ToggleCoreGui). A hidden `RobloxGui` ScreenGui is created in PlayerGui for instance-hierarchy compatibility. New public API: `ClientComm.sendNotification(player, ...)` and `ClientComm.sendCoreGuiAction(player, ...)`.
+- **ClientAgent extended** - Listens for `NotificationEvent` and shows a bottom-right toast UI (`_AegisNotifs` ScreenGui in PlayerGui). Listens for `CoreGuiAction` and applies SetCore/SetCoreGuiEnabled via `StarterGui` on the client.
 
 ---
 
@@ -57,9 +65,18 @@ From `TASKS.md`, in priority order:
 
 1. **T-10** - Confirm `api.aegislua.xyz/rbxm?url=` is live and `game:GetObjects` still works end-to-end. Requires Studio + a live asset URL to test against.
 2. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Studio.
-3. **Release** - bump version and cut a new GitHub release. Many fixes landed this session; this is a good release point.
+3. **CoreGui validation** - Test `game:GetService("CoreGui"):WaitForChild("RobloxGui").SendNotification:Fire(...)` in Studio with CLIENT_COMMUNICATION enabled. Verify the toast notification appears on the client.
+4. **Release** - bump version and cut a new GitHub release.
 
 ---
+
+## Current State of the System
+
+The CoreGui proxy is always returned (not gated by CLIENT_COMMUNICATION). The `fireNotif`/`fireCoreAction` helpers inside the proxy check `CLIENT_COMMUNICATION` and owner resolution at call time (not at proxy build time), so late owner resolution works correctly.
+
+The proxy is cached once per sandbox (`cachedCoreGuiProxy`). All method returns are closures over the same `setCoreValues`/`coreGuiEnabled` state tables.
+
+`sendNotifProxy.Fire(self, ...)` uses `_` (self) as the first param - the colon-call convention in `SendNotification:Fire(a, b, c, d)` works correctly.
 
 ## Known Risks and Gotchas
 
@@ -85,6 +102,12 @@ From `TASKS.md`, in priority order:
 **`table.sort` with closure comparators** - if the comparator raises a control-flow signal, the table is left partially sorted. Intentional; pathological comparators are out of scope.
 
 **NewScript clone path** - `script.Parent.Parent:Clone()` inside NewScript.luau clones Aegis: NewScript -> Libraries -> Aegis. Do not restructure the Libraries folder without updating this path.
+
+**CoreGui proxy WaitForChild does not yield** - it returns the child immediately (or nil for unknown names). Scripts that call WaitForChild on the proxy expecting to block will get nil back instantly if the name is not in `knownChildren`. Known children: `RobloxGui`.
+
+**CoreGui proxy is per-sandbox, not per-player** - each `Aegis.run()` / `Aegis.newSandbox()` call has its own cached proxy. This is correct: each sandbox has its own owner.
+
+**CLIENT_COMMUNICATION must be true for notifications to reach the client** - the proxy exists regardless, but `fireNotif`/`fireCoreAction` are no-ops when the flag is false or no owner is resolved.
 
 **`buildRoblox` takes `runtime`** - added when deprecated scheduler wrapping was implemented. Follow the same pattern for any new builder needing `runtime`.
 
