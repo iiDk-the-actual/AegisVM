@@ -212,11 +212,13 @@ function Scope:getGlobalScope()
     return s
 end
 
--- Declare a variable in the user-globals layer (sandbox_scope).
--- This is the right scope for host-injected values: they are shared across
--- all runIn calls but do not live in the protected stdlib scope.
+-- Declare a variable directly in the root (global) scope.
+-- Used by StdLib and host code to inject globals that are visible everywhere
+-- in the chain.  With the stdlib/user-globals/chunk layering the root is the
+-- protected stdlibScope, so host-injected values land in the protected layer
+-- and are found by scope:get() from any child scope.
 function Scope:defineGlobal(name, value)
-    self:getUserGlobalScope():declareLocal(name, value)
+    self:getGlobalScope():declareLocal(name, value)
 end
 
 -- --- Debug --------------------------------------------------------------

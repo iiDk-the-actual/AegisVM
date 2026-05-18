@@ -162,9 +162,13 @@ function Sandbox.new(options)
         runtime.maxCallDepth = options.maxCallDepth
     end
 
-    -- Inject safe standard library into the protected stdlib layer.
+    -- Inject safe standard library.
+    -- Pass scope (sandbox_scope) so StdLib closures capture a scope that can
+    -- see the full chain (sandbox_scope -> stdlibScope).  StdLib writes via
+    -- scope:defineGlobal which calls getGlobalScope(), landing in stdlibScope
+    -- (the protected root) regardless of which scope is passed here.
     if options.noStdLib ~= true then
-        StdLib.populate(stdlibScope, runtime)
+        StdLib.populate(scope, runtime)
     end
 
     -- Inject caller-supplied globals into the user-globals layer.
