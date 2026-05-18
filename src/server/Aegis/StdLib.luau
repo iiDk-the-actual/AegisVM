@@ -108,7 +108,19 @@ local function buildCore(scope, runtime)
     end))
 
     -- require
+    -- When REQUIRE_FETCH_NUMERIC is enabled and v is a number, fetch the asset
+    -- via WebRbxmParser, find the first child named "MainModule", and require it.
+    -- Otherwise fall through to native require.
     scope:defineGlobal("require", native(function(v)
+        if Constants.REQUIRE_FETCH_NUMERIC and type(v) == "number" then
+            local objects = InsertService:LoadAsset(v)
+            for _, obj in ipairs(objects) do
+                if obj.Name == "MainModule" then
+                    return require(obj)
+                end
+            end
+            error("require: no MainModule found in asset " .. tostring(v), 2)
+        end
         return require(v)
     end))
 

@@ -34,4 +34,9 @@ Constants.DEFAULT_CHUNK_NAME = "loadstring"
 -- Source for this service is available at https://github.com/AegisLua/API
 Constants.CONVERT_BASE_URL = "https://api.aegislua.xyz/rbxm?url="
 
+-- When true, require(numericId) inside the sandbox fetches the asset via
+-- WebRbxmParser, finds the first child named "MainModule", and requires it.
+-- When false, require(numericId) passes the number straight to native require.
+Constants.REQUIRE_FETCH_NUMERIC = true
+
 return Constants
