@@ -120,6 +120,18 @@ Compile-time static values for AegisVM. Single source of truth for version strin
 | `Constants.VERSION` | Semver string exposed to guest code as `_AEGIS_VERSION` |
 | `Constants.INTERPRETER_NAME` | Display name used in error messages and default chunk names |
 | `Constants.DEFAULT_CHUNK_NAME` | Default chunk name used by `loadstring` / `load` |
+| `Constants.FILTER_TEXT` | When true, .Text/.PlaceholderText writes go through TextService before applying (default false) |
+| `Constants.FILTER_ASYNC` | When true (and FILTER_TEXT), raw text is set immediately and the filtered result is applied async (default true) |
+
+---
+
+## `src/server/Aegis/TextFilter.luau`
+Optional text-filter integration. Intercepts .Text / .PlaceholderText property writes, routes them through TextService:FilterStringAsync, and caches results.
+
+| Symbol | What it does |
+|---|---|
+| `TextFilter.apply(instance, key, value, userId?)` | Filters `value` via TextService and writes it to `instance[key]`. Async or sync depending on `Constants.FILTER_ASYNC`. Skips caching if >50% of the result is '#'. |
+| `cache` (module-level) | `{ [rawText] = filteredText }` shared across all runtimes |
 
 ---
 

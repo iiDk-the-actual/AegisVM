@@ -57,4 +57,16 @@ Constants.REQUIRE_FETCH_NUMERIC = true
 --   4. nil (a warning is emitted unless VERBOSITY is SUPPRESS)
 Constants.CLIENT_COMMUNICATION = false
 
+-- When true, any .Text or .PlaceholderText assignment on a Roblox Instance
+-- is routed through Roblox's TextService filter before being applied.
+-- Results are cached so repeated assignments of the same string only filter
+-- once.  If the filtered result is more than 50% hashtag characters the
+-- cache entry is not stored and the text will be re-filtered next time.
+Constants.FILTER_TEXT = false
+
+-- When true (and FILTER_TEXT is also true), the raw text is applied
+-- immediately and the filtered replacement is applied asynchronously in a
+-- spawned task.  When false the assignment yields until filtering finishes.
+Constants.FILTER_ASYNC = true
+
 return Constants

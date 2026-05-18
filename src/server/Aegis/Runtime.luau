@@ -44,8 +44,10 @@
     All evaluation is manual AST traversal.
 ]]
 
-local Error = require(script.Parent.Error)
-local Scope = require(script.Parent.Scope)
+local Error      = require(script.Parent.Error)
+local Scope      = require(script.Parent.Scope)
+local Constants  = require(script.Parent.Constants)
+local TextFilter = require(script.Parent.TextFilter)
 
 -- ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -414,6 +416,17 @@ function Runtime:tableSet(tbl, key, value, line)
                 return
             end
             self:runtimeError("Source is not a valid member of " .. tostring(tbl.ClassName or tbl), line)
+        end
+        -- Text filtering: route .Text / .PlaceholderText through TextService
+        -- when FILTER_TEXT is enabled. TextFilter.apply handles both the
+        -- raw write and the async/sync filtered update; we return early so
+        -- the normal pcall assignment below is skipped.
+        if Constants.FILTER_TEXT
+            and type(value) == "string"
+            and (key == "Text" or key == "PlaceholderText")
+        then
+            TextFilter.apply(tbl, key, value)
+            return
         end
         local ok, err = pcall(function() tbl[key] = value end)
         if not ok then
