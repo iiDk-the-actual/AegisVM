@@ -606,14 +606,27 @@ function Parser:parseStatement()
         return { kind = "BreakStatement", line = line, col = col }
 
     elseif t.type == "continue" then
-        self:advance()
-        return { kind = "ContinueStatement", line = line, col = col }
+        -- If followed by = or , the script is using "continue" as a variable
+        -- name (allowed because it is a soft keyword), not as a statement.
+        local next = self:peek(1)
+        if next and (next.type == "=" or next.type == ",") then
+            -- fall through to the expression/assignment path below
+        else
+            self:advance()
+            return { kind = "ContinueStatement", line = line, col = col }
+        end
 
     -- ── goto / label ───────────────────────────────────────────────
     elseif t.type == "goto" then
-        self:advance()
-        local name = self:expect("IDENTIFIER", "label name").value
-        return { kind = "GotoStatement", name = name, line = line, col = col }
+        -- If followed by = or , the script is using "goto" as a variable name.
+        local next = self:peek(1)
+        if next and (next.type == "=" or next.type == ",") then
+            -- fall through to the expression/assignment path below
+        else
+            self:advance()
+            local name = self:expect("IDENTIFIER", "label name").value
+            return { kind = "GotoStatement", name = name, line = line, col = col }
+        end
 
     elseif t.type == "::" then
         self:advance()
