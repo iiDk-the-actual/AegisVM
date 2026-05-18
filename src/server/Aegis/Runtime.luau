@@ -358,7 +358,18 @@ function Runtime:tableGet(tbl, key, line, depth)
     -- All Roblox instances are userdata; Vector3/similar are "vector" in newer
     -- Roblox builds. Let Roblox's own __index handle property and method
     -- look-ups; pcall absorbs invalid access.
+    --
+    -- .Source intercept: Roblox restricts script source access at runtime.
+    -- NewScript stores the source as a "Source" attribute; read that instead.
+    -- If the instance has no such attribute, error as Roblox normally would.
     elseif t == "userdata" or t == "vector" then
+        if key == "Source" then
+            local attrOk, attrVal = pcall(function() return tbl:GetAttribute("Source") end)
+            if attrOk and attrVal ~= nil then
+                return attrVal
+            end
+            self:runtimeError("Source is not a valid member of " .. tostring(tbl.ClassName or tbl), line)
+        end
         local ok, val = pcall(function() return tbl[key] end)
         return ok and val or nil
 
@@ -389,7 +400,21 @@ function Runtime:tableSet(tbl, key, value, line)
     -- ── Roblox Instance / userdata / vector ──────────────────────────────
     -- Assign to properties directly; Roblox raises its own errors for
     -- read-only or nonexistent members.
+    --
+    -- .Source intercept: if the instance has a "Source" attribute (set by
+    -- NewScript), write to that instead. Otherwise error as Roblox would.
     if t == "userdata" or t == "vector" then
+        if key == "Source" then
+            local attrOk, attrVal = pcall(function() return tbl:GetAttribute("Source") end)
+            if attrOk and attrVal ~= nil then
+                local setOk, setErr = pcall(function() tbl:SetAttribute("Source", value) end)
+                if not setOk then
+                    self:runtimeError(tostring(setErr), line)
+                end
+                return
+            end
+            self:runtimeError("Source is not a valid member of " .. tostring(tbl.ClassName or tbl), line)
+        end
         local ok, err = pcall(function() tbl[key] = value end)
         if not ok then
             self:runtimeError(tostring(err), line)

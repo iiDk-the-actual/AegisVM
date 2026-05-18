@@ -158,11 +158,20 @@ local function buildCore(scope, runtime)
         end
         local nameOk, fullName = pcall(function() return instance:GetFullName() end)
         local chunkName = nameOk and fullName or "ModuleScript"
-        -- .Source is only readable in Studio security context.
-        -- In live games it returns "" - fall back to native require in that case.
-        local srcOk, source = pcall(function() return instance.Source end)
-        if not srcOk or source == nil or source == "" then
-            return require(instance)
+        -- Prefer the "Source" attribute set by NewScript (works in live games).
+        -- Fall back to the native .Source property (Studio only).
+        local source
+        local attrOk, attrVal = pcall(function() return instance:GetAttribute("Source") end)
+        if attrOk and type(attrVal) == "string" and attrVal ~= "" then
+            source = attrVal
+        else
+            local srcOk, srcVal = pcall(function() return instance.Source end)
+            if srcOk and type(srcVal) == "string" and srcVal ~= "" then
+                source = srcVal
+            end
+        end
+        if not source then
+            error("require: cannot read Source of '" .. chunkName .. "' (not a NewScript module and source is restricted)", 0)
         end
         -- Tokenise
         local tokens
