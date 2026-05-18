@@ -159,9 +159,13 @@ end
 -- syntactic positions; everywhere else they act like plain identifiers.
 -- Note: "typeof" is excluded - it has dedicated TypeOf AST node handling
 -- in parsePrimaryExpr and must not be treated as a plain identifier there.
+-- "continue" and "goto" are still parsed as statements when they appear at
+-- statement-start; soft status only affects expectName and parsePrimaryExpr
+-- (e.g. local continue = 5, function f(goto) end).
 local SOFT_KEYWORDS = {
     ["type"]=true, ["export"]=true,
     ["class"]=true, ["extends"]=true,
+    ["continue"]=true, ["goto"]=true,
 }
 
 -- Consume an identifier or a soft keyword used as a name.
