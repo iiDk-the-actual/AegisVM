@@ -126,12 +126,15 @@ Compile-time static values for AegisVM. Single source of truth for version strin
 ---
 
 ## `src/server/Aegis/TextFilter.luau`
-Optional text-filter integration. Intercepts .Text / .PlaceholderText property writes, routes them through TextService:FilterStringAsync, and caches results.
+Optional two-stage text-filter. Intercepts .Text / .PlaceholderText writes, redacts sensitive names, then routes through TextService:FilterStringAsync, and caches results.
 
 | Symbol | What it does |
 |---|---|
-| `TextFilter.apply(instance, key, value, userId?)` | Filters `value` via TextService and writes it to `instance[key]`. Async or sync depending on `Constants.FILTER_ASYNC`. Skips caching if >50% of the result is '#'. |
+| `TextFilter.apply(instance, key, value, userId?)` | Runs value through name redaction then TextService and writes to `instance[key]`. Async or sync per `Constants.FILTER_ASYNC`. Skips caching if >50% '#'. |
 | `cache` (module-level) | `{ [rawText] = filteredText }` shared across all runtimes |
+| `namePatterns` (module-level) | Compiled Lua patterns for team names, humanoid DisplayNames, model-with-humanoid names; rebuilt every `NAME_TTL` seconds |
+| `buildNamePatterns()` | Collects names from Teams service and Workspace descendants with a 5 s TTL |
+| `redactNames(text)` | Replaces each matched sensitive name with `#` chars of equal length, case-insensitive |
 
 ---
 
