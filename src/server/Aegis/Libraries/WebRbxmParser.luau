@@ -53,20 +53,20 @@ local function decodeValue(key, value)
 		end
 	end
 
-	if value.X and value.Y and not value.Z then
-		return Vector2.new(value.X, value.Y)
-	end
-
-	if value.X and value.Y and value.Z then
-		return Vector3.new(value.X, value.Y, value.Z)
-	end
-
 	if value.Scale and value.Offset then
 		return UDim.new(value.Scale, value.Offset)
 	end
 
 	if value.X and value.Y and type(value.X) == "table" and type(value.Y) == "table" then
 		return UDim2.new(value.X.Scale, value.X.Offset, value.Y.Scale, value.Y.Offset)
+	end
+
+	if value.X and value.Y and not value.Z and type(value.X) == "number" then
+		return Vector2.new(value.X, value.Y)
+	end
+
+	if value.X and value.Y and value.Z and type(value.X) == "number" then
+		return Vector3.new(value.X, value.Y, value.Z)
 	end
 
 	if value.Position and value.Orientation then
