@@ -314,9 +314,14 @@ function Runtime:evalMulti(node, scope)
         local obj  = self:eval(node.receiver, scope)
         local fn   = self:tableGet(obj, node.method, node.line)
         local args = self:evalArgList(node.args, scope)
-        table.insert(args, 1, obj)   -- prepend self
-        args.n = args.n + 1          -- keep .n in sync with the inserted element
-        return self:callFunctionMulti(fn, args, node.line)
+        -- Prepend self without table.insert: insert shifts using #args which
+        -- is undefined when args contains nil holes (explicit nil literals),
+        -- causing nil to be eaten and subsequent args to shift into the wrong
+        -- parameter slots (e.g. math.huge -> ignoreDescendantsInstance).
+        local argsWithSelf = { obj }
+        for i = 1, args.n do argsWithSelf[i + 1] = args[i] end
+        argsWithSelf.n = args.n + 1
+        return self:callFunctionMulti(fn, argsWithSelf, node.line)
     end
 
     self:runtimeError(
