@@ -108,12 +108,17 @@ local function buildCore(scope, runtime)
     end))
 
     -- require
+    -- ModuleScript instances are executed through the AegisVM pipeline so that
+    -- guest code, metatables, and closures all work correctly. Results are cached
+    -- by instance identity (matching Roblox's single-evaluation guarantee).
+    --
     -- When REQUIRE_FETCH_NUMERIC is enabled:
-    --   require(number)  - fetches via InsertService:LoadAsset, finds MainModule, requires it.
-    --   require(string)  - if the string starts with http:// or https://, fetches via
-    --                      InsertService:GetObjects(url), finds MainModule, requires it.
-    -- A verbosity-dependent message is printed before fetching, mirroring Roblox's format.
-    -- Native require is used for all other argument types.
+    --   require(number)  - fetches via InsertService:LoadAsset, finds MainModule,
+    --                      then falls back through this function recursively.
+    --   require(string)  - http(s):// URLs fetched via InsertService:GetObjects.
+    -- A verbosity-dependent message is printed before any network fetch.
+    local moduleCache = {}  -- [instance] = cached return value
+
     local function requireFetchLog(label)
         if Constants.VERBOSITY <= Constants.VERBOSITY_SILENT then return end
         local co = coroutine.running() or "main"
@@ -135,14 +140,70 @@ local function buildCore(scope, runtime)
         end
     end
 
+    -- Check if v is a Roblox ModuleScript instance.
+    local function isModuleScript(v)
+        if type(v) ~= "userdata" and type(v) ~= "table" then return false end
+        local ok, result = pcall(function() return typeof(v) == "Instance" and v:IsA("ModuleScript") end)
+        return ok and result
+    end
+
+    -- Run a ModuleScript's source through the AegisVM pipeline and cache the result.
+    local function requireModule(instance)
+        if moduleCache[instance] ~= nil then
+            return moduleCache[instance]
+        end
+        local nameOk, fullName = pcall(function() return instance:GetFullName() end)
+        local chunkName = nameOk and fullName or "ModuleScript"
+        local source = instance.Source
+        -- Tokenise
+        local tokens
+        local tokOk, tokErr = pcall(function()
+            tokens = Lexer.tokenize(source, chunkName)
+        end)
+        if not tokOk then
+            error("require: " .. Error.format(tokErr), 0)
+        end
+        -- Parse
+        local ast
+        local parseOk, parseErr = pcall(function()
+            ast = Parser.parse(tokens, chunkName)
+        end)
+        if not parseOk then
+            error("require: " .. Error.format(parseErr), 0)
+        end
+        -- Execute in a child of the sandbox global scope
+        local chunkScope = Scope.new(scope)
+        local execOk, sig = pcall(function()
+            runtime:execBlock(ast, chunkScope)
+        end)
+        local result
+        if execOk then
+            error("require: module '" .. chunkName .. "' did not return a value", 0)
+        elseif Error.isReturn(sig) then
+            if sig.n == 0 then
+                error("require: module '" .. chunkName .. "' did not return a value", 0)
+            end
+            result = sig.values[1]
+        else
+            error(sig, 0)
+        end
+        moduleCache[instance] = result
+        return result
+    end
+
     scope:defineGlobal("require", native(function(v)
+        -- ModuleScript instance: run through AegisVM pipeline
+        if isModuleScript(v) then
+            return requireModule(v)
+        end
         if Constants.REQUIRE_FETCH_NUMERIC then
             if type(v) == "number" then
                 requireFetchLog(tostring(v))
                 local objects = InsertService:LoadAsset(v)
                 for _, obj in ipairs(objects) do
                     if obj.Name == "MainModule" then
-                        return require(obj)
+                        -- recurse so the ModuleScript path runs it through AegisVM
+                        return requireModule(obj)
                     end
                 end
                 error("require: no MainModule found in asset " .. tostring(v), 2)
@@ -152,7 +213,7 @@ local function buildCore(scope, runtime)
                 local objects = InsertService:GetObjects(v)
                 for _, obj in ipairs(objects) do
                     if obj.Name == "MainModule" then
-                        return require(obj)
+                        return requireModule(obj)
                     end
                 end
                 error("require: no MainModule found at " .. v, 2)
