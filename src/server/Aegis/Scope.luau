@@ -141,12 +141,63 @@ function Scope:set(name, value)
     return false
 end
 
+-- Walk up the chain and return the nearest scope that has isChunkScope = true.
+-- Returns nil if there is no chunk scope in the chain (e.g. called outside execAST).
+function Scope:findChunkScope()
+    local s = self
+    while s do
+        if s.isChunkScope then return s end
+        s = s.parent
+    end
+    return nil
+end
+
+-- Return the topmost non-protected scope in the chain.
+-- With the stdlib/user-globals/chunk layering this is the sandbox (user-globals)
+-- scope - the one whose parent is the protected stdlib scope.
+-- Falls back to the root scope when no protected scope exists (backward-compatible).
+function Scope:getUserGlobalScope()
+    local s         = self
+    local candidate = s
+    while s do
+        if not s.protected then
+            candidate = s
+        end
+        s = s.parent
+    end
+    return candidate
+end
+
 -- Assign per Luau semantics:
--- - If the name is declared anywhere in the chain, update it there.
--- - Otherwise, create it at the global (root) scope.
+-- - If the name is found in a protected scope (stdlib), shadow it in the
+--   per-chunk scope so the override is isolated to this script.
+-- - If the name is found in any non-protected scope, update it there.
+-- - If the name is not declared anywhere, create it in the user-globals scope
+--   (sandbox_scope) so that runIn calls can share new globals.
 function Scope:assign(name, value)
-    if not self:set(name, value) then
-        self:getGlobalScope():declareLocal(name, value)
+    local owner = self:findOwner(name)
+    if owner then
+        if owner.protected then
+            -- Name belongs to stdlib: shadow it per-chunk rather than mutating
+            -- the shared stdlib scope.
+            local cs = self:findChunkScope()
+            if cs then
+                cs:declareLocal(name, value)
+                return
+            end
+            -- No chunk scope present (e.g. direct API call outside execAST):
+            -- fall through and write to the protected scope as before.
+        end
+        if owner.consts[name] then
+            error(Error.runtime(
+                "attempt to assign to const variable '" .. name .. "'"
+            ), 0)
+        end
+        owner.variables[name] = value
+    else
+        -- Undeclared: place in the user-globals layer so it is visible across
+        -- runIn calls but does not touch the protected stdlib scope.
+        self:getUserGlobalScope():declareLocal(name, value)
     end
 end
 
@@ -161,9 +212,11 @@ function Scope:getGlobalScope()
     return s
 end
 
--- Declare a variable directly in the global scope.
+-- Declare a variable in the user-globals layer (sandbox_scope).
+-- This is the right scope for host-injected values: they are shared across
+-- all runIn calls but do not live in the protected stdlib scope.
 function Scope:defineGlobal(name, value)
-    self:getGlobalScope():declareLocal(name, value)
+    self:getUserGlobalScope():declareLocal(name, value)
 end
 
 -- --- Debug --------------------------------------------------------------

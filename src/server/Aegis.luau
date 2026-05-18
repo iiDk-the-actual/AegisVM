@@ -143,20 +143,31 @@ Sandbox.__index = Sandbox
 
 function Sandbox.new(options)
     options = options or {}
-    local scope   = Scope.global("_G")
-    local runtime = Runtime.new(scope)
+
+    -- Two-layer global scope:
+    --   stdlibScope  (protected = true)  - populated by StdLib; never mutated
+    --                                       by guest code after populate.
+    --   scope        (user-globals layer) - exposed as sandbox.scope; holds
+    --                                       host-injected and runIn-shared vars.
+    -- A third per-chunk scope is created inside execAST for each run, so that
+    -- guest assignments to stdlib names (math, print, script, …) are isolated
+    -- to that script and do not leak into other scripts or the stdlib layer.
+    local stdlibScope     = Scope.global("stdlib")
+    stdlibScope.protected = true
+    local scope           = Scope.new(stdlibScope, "globals")
+    local runtime         = Runtime.new(scope)
 
     -- Optionally cap the call stack depth (default 200)
     if options.maxCallDepth then
         runtime.maxCallDepth = options.maxCallDepth
     end
 
-    -- Inject safe standard library
+    -- Inject safe standard library into the protected stdlib layer.
     if options.noStdLib ~= true then
-        StdLib.populate(scope, runtime)
+        StdLib.populate(stdlibScope, runtime)
     end
 
-    -- Inject caller-supplied globals
+    -- Inject caller-supplied globals into the user-globals layer.
     if options.globals then
         for k, v in pairs(options.globals) do
             scope:defineGlobal(k, v)
@@ -206,7 +217,15 @@ local function execAST(sandbox, ast)
     -- Inform the runtime which chunk is running so call-stack frames carry
     -- the correct source name in debug.traceback output.
     sandbox.runtime.sourceName = ast.sourceName or "chunk"
-    local ok, result = Runtime.execBlock(sandbox.runtime, ast, sandbox.scope)
+
+    -- Create a per-chunk scope so that assignments to stdlib globals
+    -- (math, print, script, …) are shadowed here rather than mutating the
+    -- shared stdlib or user-globals scope.  Scope:assign redirects writes to
+    -- protected (stdlib) names into the nearest isChunkScope ancestor.
+    local chunkScope            = sandbox.scope:child("chunk")
+    chunkScope.isChunkScope     = true
+
+    local ok, result = Runtime.execBlock(sandbox.runtime, ast, chunkScope)
     if ok then
         if result == nil then
             return true
