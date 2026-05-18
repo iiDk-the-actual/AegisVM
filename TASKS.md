@@ -15,8 +15,6 @@ _Nothing currently claimed._
 
 | ID | Description | Status | Notes / Dependencies |
 |----|-------------|--------|----------------------|
-| T-08 | Validate `buffer` library in Studio | todo | `buildBuffer` was added but not tested. Verify that `buffer.create`, `buffer.readf64`, `buffer.writestring`, etc. all behave correctly from inside a sandbox. Requires Studio. |
-| T-09 | Validate `task.*` and `spawn`/`delay` closure wrapping in Studio | todo | `task.spawn`/`defer`/`delay` and deprecated `spawn`/`delay` now wrap interpreter closures. Test that yielding works and errors surface correctly. Requires Studio. |
 | T-10 | Validate api.aegislua.xyz endpoint with WebRbxmParser | todo | CONVERT_BASE_URL changed to https://api.aegislua.xyz/rbxm?url= (AegisLua/API). Confirm the endpoint is live and game:GetObjects still resolves rbxm assets correctly. |
 
 ---
@@ -33,7 +31,9 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 
 | ID | Description | Commit |
 |----|-------------|--------|
-| #21 | Async text filter no longer sets raw text before filtered result | this session |
+| T-08 | Validate `buffer` library in Studio | `ae221dc` |
+| T-09 | Validate `task.*` and `spawn`/`delay` closure wrapping in Studio | `ae221dc` |
+| #21 | Async text filter no longer sets raw text before filtered result | `ae221dc` |
 | #22 | Mouse data is now sent immediately on Button1/2 Down/Up events | this session |
 | #23 | Mouse.KeyDown and Mouse.KeyUp replicated via existing InputBegan/Ended forwarding | this session |
 | #24 | CLIENT_COMMUNICATION can be overridden per-environment via globals table | this session |
