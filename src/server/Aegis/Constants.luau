@@ -9,19 +9,27 @@ local Constants = {}
 Constants.VERSION = "5"
 
 -- Verbosity levels for interpreter error output.
--- Controls how much detail appears in runtime error messages and whether
--- the interpreter emits automatic warnings for errors in callbacks.
+-- Controls how much detail appears in runtime error messages and
+-- whether guest print/warn calls are forwarded to the output window.
 --
---   SILENT   (0) - no automatic warns; error strings contain the bare message only
---   BRIEF    (1) - automatic warns fire; error strings contain the bare message only
---   STANDARD (2) - automatic warns fire; error strings are "[Category:line] message"
---   VERBOSE  (3) - automatic warns fire; error strings include a full call-stack trace
+--   SUPPRESS (0) - suppress ALL output: guest print/warn are swallowed,
+--                  AegisVM emits no automatic warnings, error strings are
+--                  bare messages.  Use when embedding AegisVM silently.
+--   SILENT   (1) - no automatic AegisVM warns; error strings are bare
+--                  messages; guest print/warn pass through.
+--   BRIEF    (2) - automatic AegisVM warns fire; error strings are bare
+--                  messages.
+--   STANDARD (3) - automatic warns fire; error strings include
+--                  [Category:line] prefix.
+--   VERBOSE  (4) - automatic warns fire; error strings include a full
+--                  call-stack trace.
 --
--- Set Constants.VERBOSITY to one of these values to change behaviour globally.
-Constants.VERBOSITY_SILENT   = 0
-Constants.VERBOSITY_BRIEF    = 1
-Constants.VERBOSITY_STANDARD = 2
-Constants.VERBOSITY_VERBOSE  = 3
+-- Set Constants.VERBOSITY to one of these values to change globally.
+Constants.VERBOSITY_SUPPRESS = 0
+Constants.VERBOSITY_SILENT   = 1
+Constants.VERBOSITY_BRIEF    = 2
+Constants.VERBOSITY_STANDARD = 3
+Constants.VERBOSITY_VERBOSE  = 4
 Constants.VERBOSITY          = Constants.VERBOSITY_VERBOSE
 
 -- Name shown in error messages and chunk names when no name is given.
@@ -38,5 +46,15 @@ Constants.CONVERT_BASE_URL = "https://api.aegislua.xyz/rbxm?url="
 -- WebRbxmParser, finds the first child named "MainModule", and requires it.
 -- When false, require(numericId) passes the number straight to native require.
 Constants.REQUIRE_FETCH_NUMERIC = true
+
+-- When true, AegisVM emulates client-side APIs (LocalPlayer, RenderStepped,
+-- GetMouse, UserInputService, CoreGui, etc.) on the server by injecting a
+-- LocalScript into the owner player's PlayerGui and communicating over
+-- RemoteEvents.  The owner is resolved in order:
+--   1. The "owner" global in the sandbox scope (if it is a Player)
+--   2. The first Player found by walking the "script" global's parent chain
+--   3. The first Player whose name matches a Model found in that chain
+--   4. nil (a warning is emitted unless VERBOSITY is SUPPRESS)
+Constants.CLIENT_COMMUNICATION = false
 
 return Constants

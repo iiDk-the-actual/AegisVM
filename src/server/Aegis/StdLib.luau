@@ -34,6 +34,7 @@ local Lexer         = require(script.Parent.Lexer)
 local Parser        = require(script.Parent.Parser)
 local Scope         = require(script.Parent.Scope)
 local InsertService = require(script.Parent.Libraries.WebRbxmParser)
+local ClientComm    = require(script.Parent.Libraries.ClientComm)
 
 local StdLib = {}
 
@@ -50,6 +51,7 @@ end
 local function buildCore(scope, runtime)
     -- print
     scope:defineGlobal("print", native(function(...)
+        if Constants.VERBOSITY <= Constants.VERBOSITY_SUPPRESS then return end
         local parts = {}
         for i = 1, select("#", ...) do
             parts[i] = tostring(select(i, ...))
@@ -59,6 +61,7 @@ local function buildCore(scope, runtime)
 
     -- warn
     scope:defineGlobal("warn", native(function(...)
+        if Constants.VERBOSITY <= Constants.VERBOSITY_SUPPRESS then return end
         local parts = {}
         for i = 1, select("#", ...) do
             parts[i] = tostring(select(i, ...))
@@ -120,7 +123,7 @@ local function buildCore(scope, runtime)
     local moduleCache = {}  -- [instance] = cached return value
 
     local function requireFetchLog(label)
-        if Constants.VERBOSITY <= Constants.VERBOSITY_SILENT then return end
+        if Constants.VERBOSITY <= Constants.VERBOSITY_SUPPRESS then return end
         local co = coroutine.running() or "main"
         local stack = runtime.callStacks[co] or {}
         local msg = "Requiring asset " .. label .. "."
@@ -1015,6 +1018,182 @@ local function buildRoblox(scope, runtime)
     -- legacy / convenience methods while passing everything else through.
     -- `workspace` is the one true lowercase service alias Roblox always exposes.
     local realGame = game
+
+    -- ── CLIENT_COMMUNICATION setup ───────────────────────────────────
+    -- When enabled, client-only APIs (LocalPlayer, RenderStepped, GetMouse,
+    -- UserInputService, CoreGui) are emulated via a LocalScript injected into
+    -- the owner player's PlayerGui and two RemoteEvents for mouse/input data.
+
+    -- Proxy cache: real Player -> wrapped player table (identity-stable)
+    local playerProxyCache = {}
+
+    -- Wrap a real Player so GetMouse() is intercepted; all other members
+    -- fall through to the real object.
+    local function wrapPlayer(player)
+        if not player then return nil end
+        if playerProxyCache[player] then return playerProxyCache[player] end
+        local proxy = setmetatable({}, {
+            __index = function(_, k)
+                if k == "GetMouse" then
+                    return function(_self)
+                        return ClientComm.getMouse(player)
+                    end
+                end
+                local v = player[k]
+                if type(v) == "function" then
+                    return function(_, ...) return v(player, ...) end
+                end
+                return v
+            end,
+            __newindex = function(_, k, v) player[k] = v end,
+            __eq = function(a, b)
+                return rawequal(a, player) or rawequal(b, player)
+            end,
+            __tostring = function() return tostring(player) end,
+        })
+        playerProxyCache[player] = proxy
+        return proxy
+    end
+
+    -- Lazy owner resolution. Resolved once and cached; nil is also cached
+    -- (logged once with callstack unless VERBOSITY is SUPPRESS).
+    local ownerResolved = false
+    local cachedOwner   = nil  -- real Player
+    local ownerProxy    = nil  -- wrapPlayer(cachedOwner)
+
+    local function resolveOwner()
+        if ownerResolved then return end
+        ownerResolved = true
+
+        -- 1. "owner" global (must be a Player)
+        local ownerGlobal = scope:get("owner")
+        if ownerGlobal ~= nil then
+            local ok, cls = pcall(function() return ownerGlobal.ClassName end)
+            if ok and cls == "Player" then
+                cachedOwner = ownerGlobal
+                ownerProxy  = wrapPlayer(cachedOwner)
+                ClientComm.setup(cachedOwner)
+                return
+            end
+        end
+
+        -- 2. Walk "script" parents looking for a Player
+        local scriptInst = scope:get("script")
+        if scriptInst ~= nil then
+            local cur = scriptInst
+            while cur ~= nil do
+                local ok, cls = pcall(function() return cur.ClassName end)
+                if ok and cls == "Player" then
+                    cachedOwner = cur
+                    ownerProxy  = wrapPlayer(cachedOwner)
+                    ClientComm.setup(cachedOwner)
+                    return
+                end
+                local pok, parent = pcall(function() return cur.Parent end)
+                if not pok then break end
+                cur = parent
+            end
+
+            -- 3. Walk "script" parents looking for a Model whose name matches a player
+            cur = scriptInst
+            while cur ~= nil do
+                local ok, cls = pcall(function() return cur.ClassName end)
+                if ok and cls == "Model" then
+                    local nok, name = pcall(function() return cur.Name end)
+                    if nok then
+                        local p = game:GetService("Players"):FindFirstChild(name)
+                        if p ~= nil then
+                            local pok2, pcls = pcall(function() return p.ClassName end)
+                            if pok2 and pcls == "Player" then
+                                cachedOwner = p
+                                ownerProxy  = wrapPlayer(cachedOwner)
+                                ClientComm.setup(cachedOwner)
+                                return
+                            end
+                        end
+                    end
+                end
+                local pok2, parent = pcall(function() return cur.Parent end)
+                if not pok2 then break end
+                cur = parent
+            end
+        end
+
+        -- 4. Not found - warn with callstack
+        if Constants.VERBOSITY > Constants.VERBOSITY_SUPPRESS then
+            local co    = coroutine.running() or "main"
+            local stack = runtime.callStacks[co] or {}
+            local parts = { "Could not find owner.", "Callstack:" }
+            for i = #stack, 1, -1 do
+                local frame = stack[i]
+                local entry = frame.chunkName .. ", line " .. frame.line
+                if frame.fnName then entry = entry .. " - " .. frame.fnName end
+                parts[#parts + 1] = entry
+            end
+            warn(table.concat(parts, "\n"))
+        end
+    end
+
+    local function getOwnerProxy()
+        resolveOwner()
+        return ownerProxy
+    end
+
+    local function getOwnerReal()
+        resolveOwner()
+        return cachedOwner
+    end
+
+    -- RunService proxy: maps RenderStepped -> Stepped for server execution.
+    local realRunService    = realGame:GetService("RunService")
+    local runServiceProxy   = setmetatable({}, {
+        __index = function(_, k)
+            if k == "RenderStepped" then return realRunService.Stepped end
+            local v = realRunService[k]
+            if type(v) == "function" then
+                return function(_, ...) return v(realRunService, ...) end
+            end
+            return v
+        end,
+        __newindex = function(_, k, v) realRunService[k] = v end,
+        __tostring = function() return tostring(realRunService) end,
+    })
+
+    -- Players proxy: LocalPlayer -> resolved owner.
+    local realPlayers   = realGame:GetService("Players")
+    local playersProxy  = setmetatable({}, {
+        __index = function(_, k)
+            if k == "LocalPlayer" or k == "localPlayer" then
+                return getOwnerProxy()
+            end
+            local v = realPlayers[k]
+            if type(v) == "function" then
+                return function(_, ...) return v(realPlayers, ...) end
+            end
+            return v
+        end,
+        __newindex = function(_, k, v) realPlayers[k] = v end,
+        __tostring = function() return tostring(realPlayers) end,
+    })
+
+    -- Helper: return the emulated UserInputService for the owner.
+    local function getUIS()
+        local owner = getOwnerReal()
+        if not owner then return nil end
+        return ClientComm.getUserInputService(owner)
+    end
+
+    -- Helper: return owner's PlayerGui as CoreGui replacement.
+    local function getCoreGui()
+        local owner = getOwnerReal()
+        if owner then
+            local ok, pg = pcall(function() return owner.PlayerGui end)
+            if ok and pg then return pg end
+        end
+        return realGame:GetService("CoreGui")
+    end
+
+    -- ── Game proxy ───────────────────────────────────────────────────
     local gameProxy
     gameProxy = setmetatable({}, {
         __index = function(_, key)
@@ -1030,7 +1209,32 @@ local function buildRoblox(scope, runtime)
                 return function(_, url)
                     return InsertService:GetObjects(url)
                 end
+            elseif key == "GetService" then
+                return function(_, serviceName)
+                    if Constants.CLIENT_COMMUNICATION then
+                        if serviceName == "RunService" then
+                            return runServiceProxy
+                        elseif serviceName == "Players" then
+                            return playersProxy
+                        elseif serviceName == "UserInputService" then
+                            return getUIS() or realGame:GetService("UserInputService")
+                        elseif serviceName == "CoreGui" then
+                            return getCoreGui()
+                        end
+                    end
+                    return realGame:GetService(serviceName)
+                end
             end
+
+            -- ── CLIENT_COMMUNICATION property shortcuts ───────────────────
+            if Constants.CLIENT_COMMUNICATION then
+                if key == "CoreGui" then
+                    return getCoreGui()
+                elseif key == "Players" then
+                    return playersProxy
+                end
+            end
+
             -- ── Pass-through ─────────────────────────────────────────────
             -- Properties return directly; methods are bound to realGame so
             -- that Roblox receives the correct 'self' (an Instance, not a table).
