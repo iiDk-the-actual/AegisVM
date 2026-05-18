@@ -493,6 +493,9 @@ end
 -- owner is an optional Player instance forwarded from the calling environment.
 -- Used by REPLICATE_SCRIPTS to inject the owner into sub-script sandboxes.
 function module:GetObjects(url, owner)
+	if Constants.VERBOSITY > Constants.VERBOSITY_SUPPRESS then
+		warn("Fetching rbxm asset " .. tostring(url) .. ".")
+	end
 	local rbxmData = HttpService:GetAsync(
 		Constants.CONVERT_BASE_URL .. HttpService:UrlEncode(url)
 	)
