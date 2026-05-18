@@ -1,6 +1,6 @@
 # TASKS.md - AegisVM Active Task Tracker
 
-Last updated: 2026-05-17 (session 2)
+Last updated: 2026-05-18 (session 3)
 Maintainer convention: claim a task by adding `[agent/dev name]` next to its status before starting work. Mark done when merged.
 
 ---
@@ -33,6 +33,12 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 
 | ID | Description | Commit |
 |----|-------------|--------|
+| #21 | Async text filter no longer sets raw text before filtered result | this session |
+| #22 | Mouse data is now sent immediately on Button1/2 Down/Up events | this session |
+| #23 | Mouse.KeyDown and Mouse.KeyUp replicated via existing InputBegan/Ended forwarding | this session |
+| #24 | CLIENT_COMMUNICATION can be overridden per-environment via globals table | this session |
+| #25 | REPLICATE_SCRIPTS constant: WebRbxmParser creates server Scripts with owner injection when enabled | this session |
+| #26 | Text proxy (raw text archived, only filtered written), notification filtering, FILTER_OUTPUT constant | this session |
 | - | CoreGui emulation: RobloxGui proxy with SendNotification, SetCore, GetCore, ToggleCoreGui, SetCoreGuiEnabled; notification toast UI on client; ClientComm extended with NotificationEvent + CoreGuiAction RemoteEvents | this session |
 | T-01 | Update FILEMAP.md - StdLib builders, WebRbxmParser path | `df9f46d` |
 | T-03 | Wrap deprecated `spawn`/`delay` globals for interpreter closures | `df9f46d` |

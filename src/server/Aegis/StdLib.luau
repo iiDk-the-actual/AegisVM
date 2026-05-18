@@ -33,6 +33,7 @@ local Error         = require(script.Parent.Error)
 local Lexer         = require(script.Parent.Lexer)
 local Parser        = require(script.Parent.Parser)
 local Scope         = require(script.Parent.Scope)
+local TextFilter    = require(script.Parent.TextFilter)
 local InsertService = require(script.Parent.Libraries.WebRbxmParser)
 local ClientComm    = require(script.Parent.Libraries.ClientComm)
 
@@ -56,7 +57,18 @@ local function buildCore(scope, runtime)
         for i = 1, select("#", ...) do
             parts[i] = tostring(select(i, ...))
         end
-        print(table.concat(parts, "\t"))
+        local text = table.concat(parts, "\t")
+        if Constants.FILTER_TEXT and Constants.FILTER_OUTPUT then
+            if Constants.FILTER_ASYNC then
+                task.spawn(function()
+                    print(TextFilter.filterString(text, 0))
+                end)
+            else
+                print(TextFilter.filterString(text, 0))
+            end
+        else
+            print(text)
+        end
     end))
 
     -- warn
@@ -66,7 +78,18 @@ local function buildCore(scope, runtime)
         for i = 1, select("#", ...) do
             parts[i] = tostring(select(i, ...))
         end
-        warn(table.concat(parts, "\t"))
+        local text = table.concat(parts, "\t")
+        if Constants.FILTER_TEXT and Constants.FILTER_OUTPUT then
+            if Constants.FILTER_ASYNC then
+                task.spawn(function()
+                    warn(TextFilter.filterString(text, 0))
+                end)
+            else
+                warn(TextFilter.filterString(text, 0))
+            end
+        else
+            warn(text)
+        end
     end))
 
     -- tostring
@@ -1019,6 +1042,16 @@ local function buildRoblox(scope, runtime)
     -- `workspace` is the one true lowercase service alias Roblox always exposes.
     local realGame = game
 
+    -- Per-sandbox CLIENT_COMMUNICATION override.
+    -- If the guest environment defines CLIENT_COMMUNICATION as a global (e.g.
+    -- via options.globals or sandbox.scope:defineGlobal), that value takes
+    -- precedence over the module-level constant for this sandbox only.
+    local function isClientComm()
+        local override = scope:get("CLIENT_COMMUNICATION")
+        if override ~= nil then return override == true end
+        return Constants.CLIENT_COMMUNICATION
+    end
+
     -- ── CLIENT_COMMUNICATION setup ───────────────────────────────────
     -- When enabled, client-only APIs (LocalPlayer, RenderStepped, GetMouse,
     -- UserInputService, CoreGui) are emulated via a LocalScript injected into
@@ -1197,7 +1230,7 @@ local function buildRoblox(scope, runtime)
     local function buildCoreGuiProxy()
         -- Fire a notification to the owner's client (if resolved and comms active).
         local function fireNotif(title, text, icon, duration)
-            if not Constants.CLIENT_COMMUNICATION then return end
+            if not isClientComm() then return end
             local owner = getOwnerReal()
             if owner then
                 ClientComm.sendNotification(owner, title, text, icon, duration)
@@ -1206,7 +1239,7 @@ local function buildRoblox(scope, runtime)
 
         -- Forward a SetCore / ToggleCoreGui action to the owner's client.
         local function fireCoreAction(action, a1, a2)
-            if not Constants.CLIENT_COMMUNICATION then return end
+            if not isClientComm() then return end
             local owner = getOwnerReal()
             if owner then
                 ClientComm.sendCoreGuiAction(owner, action, a1, a2)
@@ -1238,8 +1271,27 @@ local function buildRoblox(scope, runtime)
             __index = function(_, k)
                 if k == "Fire" then
                     return function(_, title, text, icon, duration)
-                        snBE:Fire(title, text, icon, duration)
-                        fireNotif(title, text, icon, duration)
+                        if Constants.FILTER_TEXT then
+                            local userId = (getOwnerReal() and getOwnerReal().UserId) or 0
+                            local rawTitle = tostring(title or "")
+                            local rawText  = tostring(text  or "")
+                            if Constants.FILTER_ASYNC then
+                                snBE:Fire(title, text, icon, duration)
+                                task.spawn(function()
+                                    local ft = TextFilter.filterString(rawTitle, userId)
+                                    local fb = TextFilter.filterString(rawText,  userId)
+                                    fireNotif(ft, fb, icon, duration)
+                                end)
+                            else
+                                local ft = TextFilter.filterString(rawTitle, userId)
+                                local fb = TextFilter.filterString(rawText,  userId)
+                                snBE:Fire(ft, fb, icon, duration)
+                                fireNotif(ft, fb, icon, duration)
+                            end
+                        else
+                            snBE:Fire(title, text, icon, duration)
+                            fireNotif(title, text, icon, duration)
+                        end
                     end
                 elseif k == "Event"     then return snBE.Event
                 elseif k == "Name"      then return "SendNotification"
@@ -1384,8 +1436,10 @@ local function buildRoblox(scope, runtime)
                 end
             elseif key == "GetObjects" then
                 -- game:GetObjects(url)  ->  WebRbxmParser module
+                -- Pass the resolved owner so WebRbxmParser can inject it into
+                -- sub-script sandboxes when REPLICATE_SCRIPTS is enabled.
                 return function(_, url)
-                    return InsertService:GetObjects(url)
+                    return InsertService:GetObjects(url, getOwnerReal())
                 end
             elseif key == "GetService" then
                 return function(_, serviceName)
@@ -1395,7 +1449,7 @@ local function buildRoblox(scope, runtime)
                     if serviceName == "CoreGui" then
                         return getCoreGui()
                     end
-                    if Constants.CLIENT_COMMUNICATION then
+                    if isClientComm() then
                         if serviceName == "RunService" then
                             return runServiceProxy
                         elseif serviceName == "Players" then
@@ -1413,7 +1467,7 @@ local function buildRoblox(scope, runtime)
             if key == "CoreGui" then
                 return getCoreGui()
             end
-            if Constants.CLIENT_COMMUNICATION then
+            if isClientComm() then
                 if key == "Players" then
                     return playersProxy
                 end

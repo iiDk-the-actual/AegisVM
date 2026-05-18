@@ -64,9 +64,23 @@ Constants.CLIENT_COMMUNICATION = false
 -- cache entry is not stored and the text will be re-filtered next time.
 Constants.FILTER_TEXT = false
 
--- When true (and FILTER_TEXT is also true), the raw text is applied
--- immediately and the filtered replacement is applied asynchronously in a
--- spawned task.  When false the assignment yields until filtering finishes.
+-- When true (and FILTER_TEXT is also true), the filtered replacement is applied
+-- asynchronously in a spawned task.  When false the assignment yields until
+-- filtering finishes.  In both cases the raw text is NEVER written to the
+-- instance - only the filtered result is applied.
 Constants.FILTER_ASYNC = true
+
+-- When true, any string passed to guest print() or warn() is routed through
+-- the same text filter pipeline as .Text property assignments.  If
+-- FILTER_ASYNC is also true the output is printed only after filtering
+-- completes (in a spawned task).  Ignored when FILTER_TEXT is false.
+Constants.FILTER_OUTPUT = false
+
+-- When true, WebRbxmParser creates Script (server) instances instead of
+-- LocalScript instances.  The environment owner (resolved via
+-- CLIENT_COMMUNICATION) is forwarded to each sub-script so that
+-- client-side APIs remain available.  Requires issue-24 CLIENT_COMMUNICATION
+-- global override to be set on the parent environment.
+Constants.REPLICATE_SCRIPTS = false
 
 return Constants

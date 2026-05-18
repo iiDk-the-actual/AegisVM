@@ -126,12 +126,15 @@ Compile-time static values for AegisVM. Single source of truth for version strin
 ---
 
 ## `src/server/Aegis/TextFilter.luau`
-Optional two-stage text-filter. Intercepts .Text / .PlaceholderText writes, redacts sensitive names, then routes through TextService:FilterStringAsync, and caches results.
+Optional two-stage text-filter. Intercepts .Text / .PlaceholderText writes, redacts sensitive names, then routes through TextService:FilterStringAsync, and caches results. Raw text is archived per-instance so VM reads return the guest-visible value, not the filtered instance property.
 
 | Symbol | What it does |
 |---|---|
-| `TextFilter.apply(instance, key, value, userId?)` | Runs value through name redaction then TextService and writes to `instance[key]`. Async or sync per `Constants.FILTER_ASYNC`. Skips caching if >50% '#'. |
+| `TextFilter.apply(instance, key, value, userId?)` | Archives raw value, then writes only the filtered result to `instance[key]`. Async or sync per `Constants.FILTER_ASYNC`. Never sets raw text on the instance. Skips caching if >50% '#'. |
+| `TextFilter.getRaw(instance, key)` | Returns the archived raw text last assigned by guest code (for VM tableGet intercept). |
+| `TextFilter.filterString(text, userId?)` | Filters a plain string through both pipeline stages and returns the result. Used for notifications and print/warn when FILTER_OUTPUT is true. |
 | `cache` (module-level) | `{ [rawText] = filteredText }` shared across all runtimes |
+| `rawTexts` (module-level) | Weak-key table `{ [instance] = { [key] = rawText } }` for VM read intercept |
 | `namePatterns` (module-level) | Compiled Lua patterns for team names, humanoid DisplayNames, model-with-humanoid names; rebuilt every `NAME_TTL` seconds |
 | `buildNamePatterns()` | Collects names from Teams service and Workspace descendants with a 5 s TTL |
 | `redactNames(text)` | Replaces each matched sensitive name with `#` chars of equal length, case-insensitive |
@@ -168,7 +171,7 @@ Script instance factory. Clones a template Script/LocalScript/ModuleScript, stor
 
 | Symbol | What it does |
 |---|---|
-| `NewScript.new(opts)` | Creates and returns the sandboxed script instance. `opts`: `type`, `source`, `parent` |
+| `NewScript.new(opts)` | Creates and returns the sandboxed script instance. `opts`: `type`, `source`, `parent`, `ownerUserId?` (stored as `_AegisOwnerId` attribute for REPLICATE_SCRIPTS mode) |
 
 Template children (all disabled at rest): `ScriptTemplate`, `LocalScriptTemplate`, `ModuleScriptTemplate`. Clone path: `script.Parent.Parent:Clone()` (Libraries -> Aegis).
 

@@ -105,6 +105,9 @@ local function ensureSetup(player)
     local b2UpBE    = Instance.new("BindableEvent")
     local wfBE      = Instance.new("BindableEvent")
     local wbBE      = Instance.new("BindableEvent")
+    -- Legacy Mouse.KeyDown / Mouse.KeyUp (deprecated but widely used)
+    local keyDnBE   = Instance.new("BindableEvent")
+    local keyUpBE   = Instance.new("BindableEvent")
 
     -- ── UIS state ────────────────────────────────────────────────────
 
@@ -145,9 +148,19 @@ local function ensureSetup(player)
         elseif kind == "InputBegan" then
             if data.KeyCode then keyState[data.KeyCode] = true end
             ibBE:Fire(data)
+            -- Replicate legacy Mouse.KeyDown for keyboard input (issue #23).
+            if data.UserInputType == Enum.UserInputType.Keyboard and data.KeyCode then
+                local ok, name = pcall(function() return data.KeyCode.Name:lower() end)
+                keyDnBE:Fire(ok and name or "")
+            end
         elseif kind == "InputEnded" then
             if data.KeyCode then keyState[data.KeyCode] = nil end
             ieBE:Fire(data)
+            -- Replicate legacy Mouse.KeyUp for keyboard input (issue #23).
+            if data.UserInputType == Enum.UserInputType.Keyboard and data.KeyCode then
+                local ok, name = pcall(function() return data.KeyCode.Name:lower() end)
+                keyUpBE:Fire(ok and name or "")
+            end
         elseif kind == "InputChanged" then
             icBE:Fire(data)
         elseif kind == "TextBoxFocused" then
@@ -179,6 +192,8 @@ local function ensureSetup(player)
             elseif k == "Button2Up"    then return b2UpBE.Event
             elseif k == "WheelForward"  then return wfBE.Event
             elseif k == "WheelBackward" then return wbBE.Event
+            elseif k == "KeyDown"      then return keyDnBE.Event
+            elseif k == "KeyUp"        then return keyUpBE.Event
             end
         end,
         __newindex = function(_, k, v)

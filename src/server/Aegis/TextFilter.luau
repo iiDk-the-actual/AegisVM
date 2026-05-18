@@ -32,6 +32,12 @@ local TextFilter = {}
 -- Shared across all Runtime instances: raw string -> fully filtered string.
 local cache = {}
 
+-- Per-instance archive of the raw text last assigned by guest code.
+-- Keyed by Instance (weak) so GC'd instances do not accumulate.
+-- Structure: rawTexts[instance][key] = rawString
+local rawTexts = {}
+setmetatable(rawTexts, { __mode = "k" })
+
 local function hashFraction(s)
     if #s == 0 then return 0 end
     local _, count = string.gsub(s, "#", "")
@@ -145,39 +151,53 @@ end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
 
+-- Return the raw text that guest code last assigned to instance[key].
+-- Returns nil if no assignment has been archived for this instance/key.
+function TextFilter.getRaw(instance, key)
+    local t = rawTexts[instance]
+    return t and t[key]
+end
+
 -- Apply the full filter pipeline to a property on a Roblox Instance.
 --   instance : Roblox Instance (userdata)
 --   key      : "Text" or "PlaceholderText"
 --   value    : the raw string the guest script tried to assign
 --   userId   : fromUserId for TextService (defaults to 0)
+--
+-- The raw value is NEVER written to the instance.  It is stored in rawTexts
+-- so that VM reads of the property return the guest-visible value.  Only the
+-- filtered result is written to the actual Roblox property.
 function TextFilter.apply(instance, key, value, userId)
     userId = userId or 0
 
-    if Constants.FILTER_ASYNC then
-        -- Write raw text immediately so there is no visible blank period.
-        pcall(function() instance[key] = value end)
+    -- Archive the raw text so VM tableGet can return it on read.
+    if not rawTexts[instance] then rawTexts[instance] = {} end
+    rawTexts[instance][key] = value
 
-        -- Already cached - apply synchronously without spawning.
+    if Constants.FILTER_ASYNC then
+        -- Already cached - apply the filtered result synchronously.
         if cache[value] ~= nil then
             local cached = cache[value]
             pcall(function() instance[key] = cached end)
             return
         end
 
+        -- Not cached - filter in the background and write when done.
         task.spawn(function()
             local filtered = filterSync(value, userId)
-            pcall(function()
-                -- Only overwrite if the property still holds the raw value;
-                -- the guest may have assigned something else in the meantime.
-                if instance[key] == value then
-                    instance[key] = filtered
-                end
-            end)
+            pcall(function() instance[key] = filtered end)
         end)
     else
         local filtered = filterSync(value, userId)
         pcall(function() instance[key] = filtered end)
     end
+end
+
+-- Filter a plain string through the full pipeline and return the result.
+-- Yields until filtering is complete.  Use for print/warn or notification text.
+function TextFilter.filterString(text, userId)
+    userId = userId or 0
+    return filterSync(text, userId)
 end
 
 return TextFilter

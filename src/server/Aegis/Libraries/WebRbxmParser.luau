@@ -315,10 +315,21 @@ local function recursiveDecode(objectData, parent, ctx)
 				or objectData.ClassName == "LocalScript"
 				or objectData.ClassName == "ModuleScript"
 			then
+				-- When REPLICATE_SCRIPTS is enabled and an owner is known,
+				-- create a server Script instead of a LocalScript so that
+				-- CLIENT_COMMUNICATION can replicate client APIs to the owner.
+				local scriptType = objectData.ClassName
+				if Constants.REPLICATE_SCRIPTS
+					and scriptType == "LocalScript"
+					and ctx.ownerUserId ~= nil
+				then
+					scriptType = "Script"
+				end
 				object = NewScript.new({
-					source = objectData.Source or "",
-					parent = parent,
-					type   = objectData.ClassName,
+					source      = objectData.Source or "",
+					parent      = parent,
+					type        = scriptType,
+					ownerUserId = ctx.ownerUserId,
 				})
 				-- ... (rest of script setup unchanged)
 			else
@@ -479,17 +490,27 @@ local function applyPendingRefs(ctx)
 	end
 end
 
-function module:GetObjects(url)
+-- owner is an optional Player instance forwarded from the calling environment.
+-- Used by REPLICATE_SCRIPTS to inject the owner into sub-script sandboxes.
+function module:GetObjects(url, owner)
 	local rbxmData = HttpService:GetAsync(
 		Constants.CONVERT_BASE_URL .. HttpService:UrlEncode(url)
 	)
 	local data = HttpService:JSONDecode(rbxmData)
 
+	-- Resolve the owner's UserId safely (owner may be nil or already gone).
+	local ownerUserId = nil
+	if owner ~= nil then
+		local ok, uid = pcall(function() return owner.UserId end)
+		if ok and uid then ownerUserId = uid end
+	end
+
 	local objects = {}
 	local ctx = {
 		scripts     = {},
-		instanceMap = {},   -- _id (uuid string) -> Roblox Instance
-		pendingRefs = {},   -- deferred { instance, key, targetId } entries
+		instanceMap = {},    -- _id (uuid string) -> Roblox Instance
+		pendingRefs = {},    -- deferred { instance, key, targetId } entries
+		ownerUserId = ownerUserId,  -- forwarded to NewScript for REPLICATE_SCRIPTS
 	}
 
 	for _, objectData in pairs(data) do

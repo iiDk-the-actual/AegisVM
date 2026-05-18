@@ -14,6 +14,7 @@
         "Runtime": { "$path": "src/server/Aegis/Runtime.luau" },
         "Scope":   { "$path": "src/server/Aegis/Scope.luau" },
         "StdLib":  { "$path": "src/server/Aegis/StdLib.luau" },
+        "TextFilter":  { "$path": "src/server/Aegis/TextFilter.luau" },
         "Libraries": {
           "$path": "src/server/Aegis/Libraries.luau",
           "NewScript": {

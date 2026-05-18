@@ -40,11 +40,25 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ─── Mouse button and wheel events (immediate) ───────────────────────
+-- Also send current mouse data on click/release so the server has an
+-- up-to-date position at the moment the event fires (issue #22).
 
-mouse.Button1Down:Connect(function()   inputEvent:FireServer("Button1Down",   {}) end)
-mouse.Button1Up:Connect(function()     inputEvent:FireServer("Button1Up",     {}) end)
-mouse.Button2Down:Connect(function()   inputEvent:FireServer("Button2Down",   {}) end)
-mouse.Button2Up:Connect(function()     inputEvent:FireServer("Button2Up",     {}) end)
+local function sendMouseNow()
+    local ok, delta = pcall(function() return UIS:GetMouseDelta() end)
+    mouseUp:FireServer({
+        x      = mouse.X,
+        y      = mouse.Y,
+        hit    = mouse.Hit,
+        target = mouse.Target,
+        deltaX = ok and delta.X or 0,
+        deltaY = ok and delta.Y or 0,
+    })
+end
+
+mouse.Button1Down:Connect(function()   sendMouseNow() inputEvent:FireServer("Button1Down",   {}) end)
+mouse.Button1Up:Connect(function()     sendMouseNow() inputEvent:FireServer("Button1Up",     {}) end)
+mouse.Button2Down:Connect(function()   sendMouseNow() inputEvent:FireServer("Button2Down",   {}) end)
+mouse.Button2Up:Connect(function()     sendMouseNow() inputEvent:FireServer("Button2Up",     {}) end)
 mouse.WheelForward:Connect(function()  inputEvent:FireServer("WheelForward",  {}) end)
 mouse.WheelBackward:Connect(function() inputEvent:FireServer("WheelBackward", {}) end)
 

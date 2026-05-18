@@ -44,7 +44,12 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
-- **CoreGui emulation** (this session) - `game:GetService("CoreGui")` now always returns a proxy table (never the real CoreGui). The proxy provides:
+- **Issues #21/#26 - Text filter fixes** - Async mode no longer writes raw text to instance properties (TOS compliance). Raw text is now archived in a weak-key table `rawTexts` inside TextFilter; VM reads of `.Text`/`.PlaceholderText` return the archived raw value so guest scripts see what they assigned. New `TextFilter.filterString(text, userId)` for filtering plain strings (notifications, print/warn). New `Constants.FILTER_OUTPUT = false`: when true, print/warn output is routed through the filter before being displayed. Notifications via `SendNotification:Fire` are filtered when FILTER_TEXT is enabled.
+- **Issue #22 - Mouse click data** - `ClientAgent.client.luau` now fires a `MouseUpdate` event immediately alongside every Button1/2 Down/Up event so the server receives current position at click time.
+- **Issue #23 - Mouse.KeyDown / KeyUp** - `ClientComm.luau` now fires `keyDnBE`/`keyUpBE` BindableEvents whenever InputBegan/InputEnded arrives for keyboard input. Mouse proxy exposes `KeyDown` and `KeyUp` events backed by these BindableEvents. No client changes needed - InputBegan/Ended were already forwarded.
+- **Issue #24 - Per-environment CLIENT_COMMUNICATION** - `buildRoblox` now contains an `isClientComm()` helper that reads `CLIENT_COMMUNICATION` from the sandbox scope first (set via `options.globals`), falling back to `Constants.CLIENT_COMMUNICATION`. All four in-function checks replaced.
+- **Issue #25 - REPLICATE_SCRIPTS** - New `Constants.REPLICATE_SCRIPTS = false`. When true, WebRbxmParser creates `Script` (server) instances instead of `LocalScript` for assets. Owner UserId is threaded through `ctx.ownerUserId` -> `NewScript.new(opts.ownerUserId)` -> `_AegisOwnerId` attribute on the script -> `ScriptTemplate.server.luau` reads it, resolves the Player, and injects `owner` and `CLIENT_COMMUNICATION = true` into the sub-sandbox globals.
+- **CoreGui emulation** (previous session) - `game:GetService("CoreGui")` now always returns a proxy table (never the real CoreGui). The proxy provides:
   - `CoreGui:WaitForChild("RobloxGui")` / `FindFirstChild` / `GetChildren` / `.RobloxGui` - returns RobloxGui proxy
   - `RobloxGui.SendNotification:Fire(title, text, icon, duration)` - fires a toast notification on the client
   - `RobloxGui.SendNotification.Event` - real BindableEvent signal for server-side Connect()
@@ -65,8 +70,9 @@ From `TASKS.md`, in priority order:
 
 1. **T-10** - Confirm `api.aegislua.xyz/rbxm?url=` is live and `game:GetObjects` still works end-to-end. Requires Studio + a live asset URL to test against.
 2. **T-08 / T-09** - Validate `buffer.*` and closure-wrapped `task.*`/`spawn`/`delay` in Studio.
-3. **CoreGui validation** - Test `game:GetService("CoreGui"):WaitForChild("RobloxGui").SendNotification:Fire(...)` in Studio with CLIENT_COMMUNICATION enabled. Verify the toast notification appears on the client.
-4. **Release** - bump version and cut a new GitHub release.
+3. **CoreGui + filter validation** - Test SendNotification filtering (FILTER_TEXT + FILTER_ASYNC), text proxy (read-back of raw text), FILTER_OUTPUT for print/warn. Test CoreGui notification toast. All require Studio.
+4. **Issues 19/20** - Validate buffer library and task.* closure wrapping in Studio (unchanged from previous session, still needs Studio testing).
+5. **Release** - bump version and cut a new GitHub release.
 
 ---
 
@@ -108,6 +114,14 @@ The proxy is cached once per sandbox (`cachedCoreGuiProxy`). All method returns 
 **CoreGui proxy is per-sandbox, not per-player** - each `Aegis.run()` / `Aegis.newSandbox()` call has its own cached proxy. This is correct: each sandbox has its own owner.
 
 **CLIENT_COMMUNICATION must be true for notifications to reach the client** - the proxy exists regardless, but `fireNotif`/`fireCoreAction` are no-ops when the flag is false or no owner is resolved.
+
+**isClientComm() reads scope at call time** - the per-sandbox CLIENT_COMMUNICATION override is resolved lazily (when the first client API is accessed). If the guest script sets `CLIENT_COMMUNICATION = false` after startup, it may not take effect for already-resolved owner state.
+
+**Text proxy and rawTexts weak table** - `rawTexts[instance][key]` is only set after a FILTER_TEXT assignment goes through `TextFilter.apply`. If the instance property was set before FILTER_TEXT was enabled, or set via direct host code, `getRaw` returns nil and the instance's actual value is used.
+
+**REPLICATE_SCRIPTS requires both constants** - `Constants.REPLICATE_SCRIPTS = true` alone does nothing unless the parent environment has CLIENT_COMMUNICATION enabled (via global override or constant). The owner must be resolvable at the time `game:GetObjects` is called.
+
+**Mouse.KeyDown/KeyUp fire the key name lowercased** - matches the Roblox legacy behavior. The key string is `Enum.KeyCode.Name:lower()` (e.g. "a", "leftshift"). Not a character code.
 
 **`buildRoblox` takes `runtime`** - added when deprecated scheduler wrapping was implemented. Follow the same pattern for any new builder needing `runtime`.
 

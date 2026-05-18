@@ -372,6 +372,14 @@ function Runtime:tableGet(tbl, key, line, depth)
             end
             self:runtimeError("Source is not a valid member of " .. tostring(tbl.ClassName or tbl), line)
         end
+        -- Text filtering: return the archived raw text so the script sees what
+        -- it assigned, not the filtered value the instance property holds.
+        if Constants.FILTER_TEXT
+            and (key == "Text" or key == "PlaceholderText")
+        then
+            local raw = TextFilter.getRaw(tbl, key)
+            if raw ~= nil then return raw end
+        end
         local ok, val = pcall(function() return tbl[key] end)
         return ok and val or nil
 

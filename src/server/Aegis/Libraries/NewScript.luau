@@ -27,6 +27,13 @@ function NewScript.new(opts)
 
     obj:SetAttribute("Source", opts.source or "")
 
+    -- When an owner UserId is provided (e.g. from REPLICATE_SCRIPTS mode),
+    -- store it as an attribute so ScriptTemplate can resolve the Player and
+    -- inject it as the sandbox "owner" global.
+    if opts.ownerUserId then
+        obj:SetAttribute("_AegisOwnerId", opts.ownerUserId)
+    end
+
     -- Clone the entire Aegis module tree so each sandboxed script has its
     -- own self-contained interpreter with no shared state.
     -- script.Parent is Libraries; script.Parent.Parent is Aegis itself.
