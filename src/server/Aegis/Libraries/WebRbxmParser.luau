@@ -337,12 +337,20 @@ local function recursiveDecode(objectData, parent, ctx)
 			end
 		end
 	end)
-	if not s or object == nil then
-		object = Instance.new("Tween", parent or nil)
+	local creationOk = s and object ~= nil
+	if not creationOk then
+		-- Creation failed: use a Folder as a neutral placeholder so children
+		-- still have a parent, but do NOT register this in instanceMap.
+		-- Registering a placeholder would cause reference properties on other
+		-- instances (e.g. Weld.Part1) to resolve to the wrong type and error.
+		object = Instance.new("Folder", parent or nil)
 	end
 
 	local s,f = pcall(function()
-		if objectData._id then
+		-- Only register successfully-created objects so that failed instances
+		-- are treated as "not found" by applyPendingRefs instead of resolving
+		-- to a placeholder of the wrong type.
+		if objectData._id and creationOk then
 			ctx.instanceMap[objectData._id] = object
 		end
 
