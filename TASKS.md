@@ -1,6 +1,6 @@
 # TASKS.md - AegisVM Active Task Tracker
 
-Last updated: 2026-05-17
+Last updated: 2026-05-17 (session 2)
 Maintainer convention: claim a task by adding `[agent/dev name]` next to its status before starting work. Mark done when merged.
 
 ---
