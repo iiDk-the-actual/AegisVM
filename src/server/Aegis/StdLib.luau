@@ -1201,11 +1201,16 @@ local function buildRoblox(scope, runtime)
         return cachedOwner
     end
 
-    -- RunService proxy: maps RenderStepped -> Stepped for server execution.
+    -- RunService proxy: maps RenderStepped -> Stepped for server execution,
+    -- and overrides IsStudio() when Constants.STUDIO_OVERRIDE is non-nil.
     local realRunService    = realGame:GetService("RunService")
     local runServiceProxy   = setmetatable({}, {
         __index = function(_, k)
             if k == "RenderStepped" then return realRunService.Stepped end
+            if k == "IsStudio" and Constants.STUDIO_OVERRIDE ~= nil then
+                local ov = Constants.STUDIO_OVERRIDE
+                return function() return ov end
+            end
             local v = realRunService[k]
             if type(v) == "function" then
                 return function(_, ...) return v(realRunService, ...) end
@@ -1473,10 +1478,11 @@ local function buildRoblox(scope, runtime)
                     if serviceName == "CoreGui" then
                         return getCoreGui()
                     end
+                    if serviceName == "RunService" and (isClientComm() or Constants.STUDIO_OVERRIDE ~= nil) then
+                        return runServiceProxy
+                    end
                     if isClientComm() then
-                        if serviceName == "RunService" then
-                            return runServiceProxy
-                        elseif serviceName == "Players" then
+                        if serviceName == "Players" then
                             return playersProxy
                         elseif serviceName == "UserInputService" then
                             return getUIS() or realGame:GetService("UserInputService")

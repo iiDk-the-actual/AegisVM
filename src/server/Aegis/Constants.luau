@@ -83,4 +83,10 @@ Constants.FILTER_OUTPUT = false
 -- global override to be set on the parent environment.
 Constants.REPLICATE_SCRIPTS = false
 
+-- When non-nil, overrides RunService:IsStudio() inside the sandbox with this
+-- boolean value.  Useful for testing production code paths in Studio without
+-- modifying guest source.  When nil the real RunService:IsStudio() result is
+-- returned unchanged.
+Constants.STUDIO_OVERRIDE = nil
+
 return Constants
