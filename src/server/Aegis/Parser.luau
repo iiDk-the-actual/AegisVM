@@ -782,22 +782,30 @@ end
 function Parser:parseFunctionBody(isMethod)
     local line, col = self:loc()
     -- Skip generic type parameters <T, U, ...> if present.
-    -- Roblox Luau allows  function foo<T>(...)  but we discard the params.
+    -- Roblox Luau allows  function foo<T, U>(...)  and even
+    -- constraint syntax like  <T and U>  that would confuse parseTypeExpr.
+    -- We scan by angle-bracket depth so any tokens inside are tolerated.
     if self:check("<") then
         local saved = self.pos
         local ok = pcall(function()
             self:advance()  -- consume <
-            if not self:check(">") then
-                self:parseTypeExpr()
-                while self:consume(",") do
-                    if self:check(">") then break end
-                    self:parseTypeExpr()
+            local depth = 1
+            while depth > 0 and not self:check("EOF") do
+                local tt = self:cur().type
+                if tt == "<" then
+                    depth = depth + 1
+                    self:advance()
+                elseif tt == ">" then
+                    depth = depth - 1
+                    if depth > 0 then self:advance() end
+                else
+                    self:advance()
                 end
             end
-            self:expect(">")
+            self:expect(">")  -- consume the closing >
         end)
         if not ok then
-            self.pos = saved  -- rewind; the < was not a generic list
+            self.pos = saved  -- rewind; the < was a comparison, not a generic
         end
     end
     self:expect("(")
