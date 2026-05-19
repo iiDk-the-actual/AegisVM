@@ -1,4 +1,8 @@
-local _aegis = require(script:FindFirstChild("_aegis"))
+local _aegisChild = script:FindFirstChild("_aegis")
+local _aegis = require(_aegisChild)
+-- Detach _aegis immediately so FindFirstChildWhichIsA/FindFirstChild calls inside
+-- the script source cannot find it and mistake it for the script's own children.
+_aegisChild.Parent = nil
 local globals = { script = script }
 
 -- If an owner UserId was stored by NewScript (REPLICATE_SCRIPTS mode), resolve

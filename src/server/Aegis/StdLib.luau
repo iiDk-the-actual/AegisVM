@@ -215,18 +215,6 @@ local function buildCore(scope, runtime)
         if not parseOk then
             error("require: " .. Error.format(parseErr), 0)
         end
-        -- Temporarily detach the `_aegis` internal child before executing.
-        -- NewScript.new adds `_aegis` as the first child of every module it
-        -- creates. Guest code that calls FindFirstChildWhichIsA("ModuleScript")
-        -- would find `_aegis` (itself a ModuleScript) before the real inner
-        -- module, causing it to require the AegisVM engine instead of the
-        -- intended payload. Detaching hides it from native Instance searches
-        -- during execution; it is restored afterwards so the native require
-        -- path (ModuleScriptTemplate) still works.
-        local _aegisOk, _aegisChild = pcall(function() return instance:FindFirstChild("_aegis") end)
-        if _aegisOk and _aegisChild then
-            pcall(function() _aegisChild.Parent = nil end)
-        end
         -- Execute in a child of the sandbox global scope.
         -- Shadow `script` with the module instance being required, matching
         -- Roblox's native behaviour where each ModuleScript sees itself as `script`.
@@ -235,14 +223,6 @@ local function buildCore(scope, runtime)
         local execOk, sig = pcall(function()
             runtime:execBlock(ast, chunkScope)
         end)
-        -- Restore _aegis (if the guest code did not already remove it)
-        if _aegisOk and _aegisChild then
-            pcall(function()
-                if _aegisChild.Parent == nil then
-                    _aegisChild.Parent = instance
-                end
-            end)
-        end
         local result
         if execOk then
             error("require: module '" .. chunkName .. "' did not return a value", 0)
