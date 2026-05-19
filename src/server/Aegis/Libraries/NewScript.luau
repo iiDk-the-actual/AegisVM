@@ -12,11 +12,20 @@
 --         opts.parent  -- Instance to parent the new script to
 --         returns the new script Instance
 
-local NewScript = {}
+local RS = game:GetService("ReplicatedStorage")
 
--- Monotonic counter used to give each _aegis clone a unique name in RS so
--- multiple NewScript modules never interfere with each other's lookup.
-local nextId = 0
+-- All NewScript modules in this session share one _aegis clone in RS.
+-- The GUID suffix makes the name unique across sessions and games so it
+-- does not collide with anything a developer or guest script might create.
+local aegisName = "_aegis_" .. game:GetService("HttpService"):GenerateGUID(false)
+local sharedAegis = RS:FindFirstChild(aegisName)
+if not sharedAegis then
+    sharedAegis = script.Parent.Parent:Clone()
+    sharedAegis.Name = aegisName
+    sharedAegis.Parent = RS
+end
+
+local NewScript = {}
 
 function NewScript.new(opts)
     local obj
@@ -38,23 +47,9 @@ function NewScript.new(opts)
         obj:SetAttribute("_AegisOwnerId", opts.ownerUserId)
     end
 
-    -- Clone the entire Aegis module tree so each sandboxed script has its
-    -- own self-contained interpreter with no shared state.
-    -- script.Parent is Libraries; script.Parent.Parent is Aegis itself.
-    --
-    -- The clone lives in ReplicatedStorage rather than as a direct child of obj.
-    -- If it were a child, FindFirstChildWhichIsA("ModuleScript", true) calls
-    -- inside the module source would find _aegis before real inner modules.
-    -- Templates locate the clone via the "_aegisRef" attribute (a plain string
-    -- holding the unique name in RS). Attributes are invisible to child searches,
-    -- so guest code cannot accidentally stumble on the reference.
-    nextId = nextId + 1
-    local aegisName = "_aegis_" .. nextId
-
-    local aegisClone = script.Parent.Parent:Clone()
-    aegisClone.Name = aegisName
-    aegisClone.Parent = game:GetService("ReplicatedStorage")
-
+    -- Point to the shared _aegis clone via a string attribute. Attributes are
+    -- invisible to FindFirstChild/FindFirstChildWhichIsA searches, so guest
+    -- code inside the module source cannot accidentally find _aegis.
     obj:SetAttribute("_aegisRef", aegisName)
 
     obj.Parent = opts.parent
