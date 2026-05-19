@@ -83,6 +83,15 @@ Constants.FILTER_OUTPUT = false
 -- global override to be set on the parent environment.
 Constants.REPLICATE_SCRIPTS = false
 
+-- Controls which TextService filter method is used when FILTER_TEXT is true.
+--   false (default) - GetNonChatStringForBroadcastAsync: lenient, designed for
+--                     UI text visible to all players.  Some words (place names,
+--                     etc.) pass through that a chat filter would block.
+--   true            - GetChatForUserAsync: strict chat-level filter.  Blocks
+--                     more aggressively.  Uses the fromUserId as the recipient
+--                     so the filter is scoped to that player's settings.
+Constants.FILTER_STRICT = false
+
 -- When non-nil, overrides RunService:IsStudio() inside the sandbox with this
 -- boolean value.  Useful for testing production code paths in Studio without
 -- modifying guest source.  When nil the real RunService:IsStudio() result is

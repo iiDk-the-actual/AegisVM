@@ -119,33 +119,51 @@ end
 -- ─── TextService stage ───────────────────────────────────────────────────────
 
 -- Run text through both pipeline stages, yielding until done.
--- Returns the fully filtered string, or the best available fallback.
+-- Returns the fully filtered string, or the name-redacted fallback on any
+-- service error.  Results are only cached when filtering fully succeeded -
+-- failures (rate limit, timeout, service down) are never cached so the next
+-- call retries rather than permanently treating the text as clean.
 local function filterSync(text, userId)
     if cache[text] then return cache[text] end
 
     -- Stage 1: name redaction (fast, no yield)
     local redacted = redactNames(text)
 
-    -- Stage 2: TextService (yields)
+    -- Stage 2: TextService (yields, may be rate-limited or unavailable)
     local ok, result = pcall(function()
         return TextService:FilterStringAsync(redacted, userId)
     end)
-    local filtered
-    if ok and result ~= nil then
-        local ok2, s = pcall(function()
+
+    if not ok or result == nil then
+        -- FilterStringAsync failed (rate limit, timeout, service down).
+        -- Return name-redacted text WITHOUT caching so the next call retries.
+        return redacted
+    end
+
+    -- Extract the filtered string using the configured strictness level.
+    local ok2, filtered = pcall(function()
+        if Constants.FILTER_STRICT then
+            -- Chat-level filter: stricter, scoped to the player's settings.
+            return result:GetChatForUserAsync(userId)
+        else
+            -- Broadcast filter: lenient, safe for all-player UI text.
             return result:GetNonChatStringForBroadcastAsync()
-        end)
-        filtered = (ok2 and type(s) == "string") and s or redacted
-    else
-        filtered = redacted
+        end
+    end)
+
+    if not ok2 or type(filtered) ~= "string" then
+        -- GetChatForUserAsync / GetNonChatStringForBroadcastAsync failed.
+        -- Again, do not cache - let the next call retry.
+        return redacted
     end
 
-    if hashFraction(filtered) > 0.5 then
-        cache[text] = nil
-        return filtered
+    -- Cache only when filtering fully succeeded and the result is not mostly
+    -- hashes (a mostly-hashed result suggests the filter is unreliable for
+    -- this input; retrying may produce a better result).
+    if hashFraction(filtered) <= 0.5 then
+        cache[text] = filtered
     end
 
-    cache[text] = filtered
     return filtered
 end
 
