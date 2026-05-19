@@ -1,9 +1,6 @@
--- _aegisRef points to the _aegis clone in ReplicatedStorage. Using an
--- ObjectValue instead of a direct child keeps _aegis out of
--- FindFirstChildWhichIsA("ModuleScript") searches on this script.
-local _aegisRef = script:WaitForChild("_aegisRef")
-local _aegis = require(_aegisRef.Value)
--- Destroy the local pointer. Don't attempt to nil-parent the RS clone:
--- clients cannot modify server-owned instances in ReplicatedStorage.
-_aegisRef:Destroy()
+-- Locate the private _aegis clone in ReplicatedStorage via the "_aegisRef"
+-- attribute. WaitForChild handles replication delay on the client.
+local _aegis = require(game:GetService("ReplicatedStorage"):WaitForChild(
+    script:GetAttribute("_aegisRef")
+))
 _aegis.run(script:GetAttribute("Source"), script.Name, { globals = { script = script } })

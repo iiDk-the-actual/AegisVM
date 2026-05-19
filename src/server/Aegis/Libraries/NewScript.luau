@@ -14,6 +14,10 @@
 
 local NewScript = {}
 
+-- Monotonic counter used to give each _aegis clone a unique name in RS so
+-- multiple NewScript modules never interfere with each other's lookup.
+local nextId = 0
+
 function NewScript.new(opts)
     local obj
 
@@ -38,23 +42,20 @@ function NewScript.new(opts)
     -- own self-contained interpreter with no shared state.
     -- script.Parent is Libraries; script.Parent.Parent is Aegis itself.
     --
-    -- IMPORTANT: the clone must NOT be a direct child of obj. If it were,
-    -- FindFirstChildWhichIsA("ModuleScript", true) calls inside the module source
-    -- would find _aegis (which is itself a ModuleScript) before the real inner
-    -- modules, breaking require(). Instead, park it in ReplicatedStorage and
-    -- point to it via an ObjectValue child (_aegisRef). ObjectValue is not a
-    -- ModuleScript, so child searches on obj never see it.
+    -- The clone lives in ReplicatedStorage rather than as a direct child of obj.
+    -- If it were a child, FindFirstChildWhichIsA("ModuleScript", true) calls
+    -- inside the module source would find _aegis before real inner modules.
+    -- Templates locate the clone via the "_aegisRef" attribute (a plain string
+    -- holding the unique name in RS). Attributes are invisible to child searches,
+    -- so guest code cannot accidentally stumble on the reference.
+    nextId = nextId + 1
+    local aegisName = "_aegis_" .. nextId
+
     local aegisClone = script.Parent.Parent:Clone()
-    aegisClone.Name = "_aegis"
-
-    local ref = Instance.new("ObjectValue")
-    ref.Name = "_aegisRef"
-    ref.Value = aegisClone
-    ref.Parent = obj
-
-    -- Parent the clone after the ObjectValue is set up so replication order is
-    -- consistent: ref arrives with obj, clone arrives in RS simultaneously.
+    aegisClone.Name = aegisName
     aegisClone.Parent = game:GetService("ReplicatedStorage")
+
+    obj:SetAttribute("_aegisRef", aegisName)
 
     obj.Parent = opts.parent
     return obj

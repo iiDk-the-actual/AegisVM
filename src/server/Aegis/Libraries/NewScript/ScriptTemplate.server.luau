@@ -1,8 +1,6 @@
-local _aegisRef = script:WaitForChild("_aegisRef")
-local _aegisModule = _aegisRef.Value
-local _aegis = require(_aegisModule)
-_aegisRef:Destroy()
-pcall(function() _aegisModule.Parent = nil end)
+local _aegis = require(game:GetService("ReplicatedStorage"):WaitForChild(
+    script:GetAttribute("_aegisRef")
+))
 
 local globals = { script = script }
 
