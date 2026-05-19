@@ -249,9 +249,14 @@ function Parser:parseTypeSimple()
         self:parseTypeSimple()
     elseif t.type == "typeof" then
         self:advance()
-        self:expect("(")
-        self:parseExpr()   -- consume the expression
-        self:expect(")")
+        -- typeof(expr) is the normal form; tolerate bare `typeof` (no parens)
+        -- in type annotations so that malformed or unusual type defs don't crash.
+        if self:check("(") then
+            self:advance()
+            self:parseExpr()   -- consume the expression
+            self:expect(")")
+        end
+        -- If not followed by `(`, treat `typeof` as a bare type name and continue.
     elseif t.type == "(" then
         -- Tuple type or function type
         self:advance()
@@ -776,6 +781,25 @@ end
 -- isMethod = true ⟹ implicitly prepend "self" to param list
 function Parser:parseFunctionBody(isMethod)
     local line, col = self:loc()
+    -- Skip generic type parameters <T, U, ...> if present.
+    -- Roblox Luau allows  function foo<T>(...)  but we discard the params.
+    if self:check("<") then
+        local saved = self.pos
+        local ok = pcall(function()
+            self:advance()  -- consume <
+            if not self:check(">") then
+                self:parseTypeExpr()
+                while self:consume(",") do
+                    if self:check(">") then break end
+                    self:parseTypeExpr()
+                end
+            end
+            self:expect(">")
+        end)
+        if not ok then
+            self.pos = saved  -- rewind; the < was not a generic list
+        end
+    end
     self:expect("(")
 
     local params = {}
