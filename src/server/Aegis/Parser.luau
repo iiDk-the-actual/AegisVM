@@ -1043,13 +1043,20 @@ function Parser:parsePrimaryExpr()
         self:advance()
         return { kind = "Identifier", name = t.value, line = line, col = col }
 
-    -- typeof(expr) as a primary expression (Luau)
+    -- typeof(expr) as a primary expression (Luau).
+    -- `typeof` is not a reserved keyword in Roblox Luau - it is a built-in
+    -- global function. When it appears without `(`, treat it as a plain
+    -- identifier so that patterns like `typeof and fallback` work correctly.
     elseif t.type == "typeof" then
         self:advance()
-        self:expect("(")
-        local inner = self:parseExpr()
-        self:expect(")")
-        return { kind = "TypeOf", expr = inner, line = line, col = col }
+        if self:check("(") then
+            self:advance()
+            local inner = self:parseExpr()
+            self:expect(")")
+            return { kind = "TypeOf", expr = inner, line = line, col = col }
+        else
+            return { kind = "Identifier", name = "typeof", line = line, col = col }
+        end
 
     -- Interpolated string: `Hello {name}!`
     elseif t.type == "ISTRING" then
