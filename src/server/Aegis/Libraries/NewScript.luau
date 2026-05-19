@@ -37,9 +37,24 @@ function NewScript.new(opts)
     -- Clone the entire Aegis module tree so each sandboxed script has its
     -- own self-contained interpreter with no shared state.
     -- script.Parent is Libraries; script.Parent.Parent is Aegis itself.
+    --
+    -- IMPORTANT: the clone must NOT be a direct child of obj. If it were,
+    -- FindFirstChildWhichIsA("ModuleScript", true) calls inside the module source
+    -- would find _aegis (which is itself a ModuleScript) before the real inner
+    -- modules, breaking require(). Instead, park it in ReplicatedStorage and
+    -- point to it via an ObjectValue child (_aegisRef). ObjectValue is not a
+    -- ModuleScript, so child searches on obj never see it.
     local aegisClone = script.Parent.Parent:Clone()
     aegisClone.Name = "_aegis"
-    aegisClone.Parent = obj
+
+    local ref = Instance.new("ObjectValue")
+    ref.Name = "_aegisRef"
+    ref.Value = aegisClone
+    ref.Parent = obj
+
+    -- Parent the clone after the ObjectValue is set up so replication order is
+    -- consistent: ref arrives with obj, clone arrives in RS simultaneously.
+    aegisClone.Parent = game:GetService("ReplicatedStorage")
 
     obj.Parent = opts.parent
     return obj
