@@ -214,9 +214,35 @@ end
 
 -- ─── Execution ────────────────────────────────────────────────────────
 
+-- Wrap a single value: if it is an AegisVM interpreter closure (a table with
+-- __fn=true), return a native Lua function that dispatches through the runtime
+-- so callers outside the interpreter can invoke it directly.  All other values
+-- are returned unchanged.
+local function wrapIfClosure(rt, value)
+    if type(value) ~= "table" or not rawget(value, "__fn") then
+        return value
+    end
+    local closure = value
+    return function(...)
+        local callArgs = table.pack(...)
+        local rets = table.pack(pcall(function()
+            local r = rt:callFunctionMulti(closure, callArgs)
+            return table.unpack(r, 1, r.n)
+        end))
+        if not rets[1] then
+            local err = rets[2]
+            if Error.isSignal(err) then return end
+            error(tostring(err), 0)
+        end
+        return table.unpack(rets, 2, rets.n)
+    end
+end
+
 -- Execute a pre-compiled AST block in a sandbox.
 -- Returns (true, v1, v2, …) on success or (false, errorMessage) on failure.
 -- Top-level return values from the script are unpacked as extra return values.
+-- Any AegisVM closure values in the return list are wrapped in native functions
+-- so callers outside the interpreter (e.g. ModuleScriptTemplate) can call them.
 local function execAST(sandbox, ast)
     -- Inform the runtime which chunk is running so call-stack frames carry
     -- the correct source name in debug.traceback output.
@@ -235,7 +261,14 @@ local function execAST(sandbox, ast)
             return true
         end
         -- result is a MultiReturn table: { __multi=true, n=N, [1]=v1, … }
-        return true, table.unpack(result, 1, result.n)
+        -- Wrap any interpreter closures before handing values to native callers.
+        local rt = sandbox.runtime
+        local n = result.n
+        local wrapped = table.create(n)
+        for i = 1, n do
+            wrapped[i] = wrapIfClosure(rt, result[i])
+        end
+        return true, table.unpack(wrapped, 1, n)
     end
     return false, Error.format(result)
 end
