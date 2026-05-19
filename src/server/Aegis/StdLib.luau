@@ -234,6 +234,27 @@ local function buildCore(scope, runtime)
         else
             error(sig, 0)
         end
+        -- If the module returned an interpreter closure, wrap it in a real
+        -- Lua function so that native callers (e.g. require(mod)(args) from
+        -- the command bar or ModuleScriptTemplate) can call it directly.
+        -- This mirrors the argument-wrapping done in callFunctionMulti.
+        if type(result) == "table" and rawget(result, "__fn") then
+            local closure = result
+            local rt = runtime
+            result = function(...)
+                local callArgs = table.pack(...)
+                local rets = table.pack(pcall(function()
+                    local r = rt:callFunctionMulti(closure, callArgs)
+                    return table.unpack(r, 1, r.n)
+                end))
+                if not rets[1] then
+                    local err = rets[2]
+                    if Error.isSignal(err) then return end
+                    error(tostring(err), 0)
+                end
+                return table.unpack(rets, 2, rets.n)
+            end
+        end
         moduleCache[instance] = result
         return result
     end
