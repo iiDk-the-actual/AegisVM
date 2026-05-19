@@ -215,8 +215,11 @@ local function buildCore(scope, runtime)
         if not parseOk then
             error("require: " .. Error.format(parseErr), 0)
         end
-        -- Execute in a child of the sandbox global scope
+        -- Execute in a child of the sandbox global scope.
+        -- Shadow `script` with the module instance being required, matching
+        -- Roblox's native behaviour where each ModuleScript sees itself as `script`.
         local chunkScope = Scope.new(scope)
+        chunkScope:declareLocal("script", instance)
         local execOk, sig = pcall(function()
             runtime:execBlock(ast, chunkScope)
         end)
