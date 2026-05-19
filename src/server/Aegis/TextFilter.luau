@@ -24,6 +24,25 @@ local Constants   = require(script.Parent.Constants)
 local TextService = game:GetService("TextService")
 local Teams       = game:GetService("Teams")
 local Workspace   = game:GetService("Workspace")
+local RunService  = game:GetService("RunService")
+
+local isServer = RunService:IsServer()
+
+-- Client-only: lazy reference to the FilterRequest RemoteFunction in _AegisComm.
+-- Resolved on first filter call so we don't block module load.
+local filterRemote = nil
+
+local function getFilterRemote()
+    if filterRemote then return filterRemote end
+    local ok, rf = pcall(function()
+        local player = game:GetService("Players").LocalPlayer
+        local gui    = player.PlayerGui:WaitForChild("_AegisComm", 10)
+        if not gui then return nil end
+        return gui:WaitForChild("FilterRequest", 10)
+    end)
+    if ok and rf then filterRemote = rf end
+    return filterRemote
+end
 
 local TextFilter = {}
 
@@ -128,6 +147,21 @@ local function filterSync(text, userId)
 
     -- Stage 1: name redaction (fast, no yield)
     local redacted = redactNames(text)
+
+    -- On the client, FilterStringAsync is unavailable. Route through the
+    -- FilterRequest RemoteFunction so the server runs the full pipeline.
+    if not isServer then
+        local rf = getFilterRemote()
+        if not rf then return redacted end
+        local ok, filtered = pcall(function()
+            return rf:InvokeServer(text)
+        end)
+        if not ok or type(filtered) ~= "string" then return redacted end
+        if hashFraction(filtered) <= 0.5 then
+            cache[text] = filtered
+        end
+        return filtered
+    end
 
     -- Stage 2: TextService (yields, may be rate-limited or unavailable)
     local ok, result = pcall(function()

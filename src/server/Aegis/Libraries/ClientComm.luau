@@ -13,7 +13,8 @@
 
 local ClientComm = {}
 
-local ClientAgent = script:WaitForChild("ClientAgent")
+local ClientAgent  = script:WaitForChild("ClientAgent")
+local TextFilter   = require(script.Parent.Parent.TextFilter)
 
 -- Cache: real Player -> state table
 local playerState = {}
@@ -73,6 +74,21 @@ local function ensureSetup(player)
         coreGuiAction = Instance.new("RemoteEvent")
         coreGuiAction.Name = "CoreGuiAction"
         coreGuiAction.Parent = comms
+    end
+
+    -- RemoteFunction: client invokes to filter text server-side.
+    -- TextService:FilterStringAsync is server-only; LocalScripts route through
+    -- this function so the full filter pipeline runs on the server.
+    local filterRequest = comms:FindFirstChild("FilterRequest")
+    if not filterRequest then
+        filterRequest = Instance.new("RemoteFunction")
+        filterRequest.Name = "FilterRequest"
+        filterRequest.Parent = comms
+    end
+    filterRequest.OnServerInvoke = function(requestingPlayer, text)
+        if not rawequal(requestingPlayer, player) then return text end
+        if type(text) ~= "string" then return "" end
+        return TextFilter.filterString(text, requestingPlayer.UserId)
     end
 
     -- Hidden RobloxGui ScreenGui in PlayerGui. Exists so that instance-hierarchy
