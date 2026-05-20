@@ -124,6 +124,7 @@
     ══════════════════════════════════════════════════════════════════
 ]]
 
+local Constants  = require(script.Constants)
 local Lexer      = require(script.Lexer)
 local Parser     = require(script.Parser)
 local Runtime    = require(script.Runtime)
@@ -179,10 +180,18 @@ function Sandbox.new(options)
         end
     end
 
-    return setmetatable({
+    local sandbox = setmetatable({
         scope   = scope,
         runtime = runtime,
     }, Sandbox)
+
+    -- Inject a "luac" cursor global when the constant is enabled.
+    -- Skipped if the caller already provided their own "luac" via options.globals.
+    if Constants.LUAC_GLOBAL and scope:get("luac") == nil then
+        scope:defineGlobal("luac", LuaC.cursor(sandbox))
+    end
+
+    return sandbox
 end
 
 -- ─── Compilation ─────────────────────────────────────────────────────

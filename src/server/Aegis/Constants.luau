@@ -98,4 +98,12 @@ Constants.FILTER_STRICT = false
 -- returned unchanged.
 Constants.STUDIO_OVERRIDE = nil
 
+-- When true, a "luac" global is automatically injected into every sandbox at
+-- creation time.  The global is a LuaC.cursor() bound to that sandbox, so
+-- guest Luau code can call luac'instruction' to execute stack-machine
+-- instructions directly.  Defaults to false; flip to true to enable globally,
+-- or pass globals = { luac = Aegis.LuaC.cursor(sandbox) } for per-sandbox
+-- control.
+Constants.LUAC_GLOBAL = false
+
 return Constants
