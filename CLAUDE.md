@@ -132,6 +132,11 @@ Aegis.LuaC.runIn(sandbox, source, sourceName?)     -- existing sandbox, returns 
 Each line is one instruction. Positive stack indices are 1-based from the bottom;
 negative indices count from the top (-1 = top).
 
+Both space-separated and parenthesized call syntax are accepted per instruction:
+`getglobal game` or `getglobal("game")`, `getfield -1 Workspace` or `getfield(-1, "Workspace")`.
+String arguments in the parenthesized form may be quoted or bare; for `pushstring` the
+full quoted content (including spaces) is the pushed value.
+
 | Instruction | Effect |
 |---|---|
 | `getglobal <name>` | Push sandbox global `name` |

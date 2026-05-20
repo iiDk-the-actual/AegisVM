@@ -13,6 +13,17 @@
         Positive indices are 1-based from the bottom of the stack.
         Negative indices are relative from the top: -1 = top, -2 = second.
 
+    Both space-separated and parenthesized call syntax are accepted:
+
+        getglobal game
+        getglobal("game")
+
+        getfield -1 Workspace
+        getfield(-1, "Workspace")
+
+    String arguments in the parenthesized form may be quoted or unquoted.
+    For pushstring the entire quoted argument (including spaces) is the value.
+
     getglobal <name>
         Push the value of sandbox global <name>.
 
@@ -92,6 +103,40 @@ local function resolveIdx(stack, idx)
     return idx
 end
 
+-- Convert a parenthesized instruction line to space-separated form.
+-- e.g. getfield(-1, "Workspace") -> getfield -1 Workspace
+-- e.g. pushstring("hello world") -> pushstring hello world
+-- Lines that are already space-separated are returned unchanged.
+local function normalizeLine(line)
+    local op, argsStr = line:match("^(%a+)%((.*)%)%s*$")
+    if not op then
+        return line
+    end
+
+    argsStr = argsStr:match("^%s*(.-)%s*$")
+    if argsStr == "" then
+        return op
+    end
+
+    -- pushstring: the entire quoted (or unquoted) argument is the string value,
+    -- which may contain spaces and commas, so do not split on commas.
+    if op == "pushstring" then
+        local s = argsStr:match('^"(.*)"$') or argsStr:match("^'(.*)'$") or argsStr
+        return op .. " " .. s
+    end
+
+    -- All other instructions: split on commas, strip surrounding whitespace
+    -- and quotes from each token, then join with spaces.
+    local parts = {}
+    for part in argsStr:gmatch("[^,]+") do
+        part = part:match("^%s*(.-)%s*$")
+        local unquoted = part:match('^"(.*)"$') or part:match("^'(.*)'$")
+        table.insert(parts, unquoted or part)
+    end
+
+    return op .. " " .. table.concat(parts, " ")
+end
+
 -- Split source into non-empty, trimmed instruction lines.
 local function parseLines(source)
     local lines = {}
@@ -109,7 +154,7 @@ local function parseLines(source)
         end
         raw = raw:gsub("\r", ""):match("^%s*(.-)%s*$")
         if raw ~= "" then
-            table.insert(lines, raw)
+            table.insert(lines, normalizeLine(raw))
         end
     end
     return lines
