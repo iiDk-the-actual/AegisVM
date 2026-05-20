@@ -133,6 +133,7 @@ end
 
 local function execute(instructions, sandbox)
     local loopEnds = buildLoopMap(instructions)
+    local runtime  = sandbox.runtime
     local stack    = {}
     local loopStk  = {}  -- stack of { startPc, remaining }
     local pc       = 1
@@ -163,7 +164,10 @@ local function execute(instructions, sandbox)
                 local tbl = peek(tonumber(idxStr))
                 local val = nil
                 if tbl ~= nil then
-                    pcall(function() val = tbl[name] end)
+                    -- Route through Runtime:tableGet so that FILTER_TEXT raw-text
+                    -- intercepts, __index depth limiting, and interpreter closure
+                    -- dispatch all apply identically to regular Aegis code.
+                    pcall(function() val = runtime:tableGet(tbl, name, nil) end)
                 end
                 push(val)
             end
@@ -177,7 +181,9 @@ local function execute(instructions, sandbox)
                 local tbl = fromStackVal(stack[pos])
                 local val = pop()
                 if tbl ~= nil then
-                    pcall(function() tbl[name] = val end)
+                    -- Route through Runtime:tableSet so that FILTER_TEXT routing,
+                    -- Source attribute intercept, and __newindex handling all apply.
+                    pcall(function() runtime:tableSet(tbl, name, val, nil) end)
                 end
             end
 
