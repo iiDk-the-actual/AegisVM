@@ -16,6 +16,7 @@
         "Scope":     { "$path": "src/server/Aegis/Scope.luau" },
         "StdLib":     { "$path": "src/server/Aegis/StdLib.luau" },
         "TextFilter": { "$path": "src/server/Aegis/TextFilter.luau" },
+        "LuaC":      { "$path": "src/server/Aegis/LuaC.luau" },
         "Libraries": {
           "$path": "src/server/Aegis/Libraries.luau",
           "NewScript": {

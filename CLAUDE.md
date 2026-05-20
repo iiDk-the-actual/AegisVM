@@ -66,7 +66,7 @@ This codebase targets Roblox's Luau runtime, which differs from standard Lua 5.3
 
 ## Architecture
 
-AegisVM is a Luau-in-Luau interpreter. Source text > tokens > AST > execution. All six modules live as children of the `Aegis` ModuleScript.
+AegisVM is a Luau-in-Luau interpreter. Source text > tokens > AST > execution. All core modules live as children of the `Aegis` ModuleScript.
 
 ### Data flow
 
@@ -120,7 +120,35 @@ Aegis.compile(source, sourceName?)                 -- tokenise+parse only, retur
 Aegis.execAST(sandbox, ast)                        -- execute pre-compiled AST
 Aegis.newSandbox({ maxCallDepth, noStdLib, globals })
 sandbox.scope:defineGlobal(name, value)            -- inject host values
+
+-- LuaC stack-machine interpreter (Aegis.LuaC)
+Aegis.LuaC.run(source, sourceName?, options?)      -- fresh sandbox, returns true or false,err
+Aegis.LuaC.runIn(sandbox, source, sourceName?)     -- existing sandbox, returns true or false,err
 ```
+
+### LuaC instruction set
+
+`LuaC` executes a text-based stack machine format that mirrors the Lua C API.
+Each line is one instruction. Positive stack indices are 1-based from the bottom;
+negative indices count from the top (-1 = top).
+
+| Instruction | Effect |
+|---|---|
+| `getglobal <name>` | Push sandbox global `name` |
+| `getfield <idx> <name>` | Push `stack[idx][name]`; does not remove `stack[idx]` |
+| `setfield <idx> <name>` | Pop top, assign to `stack[idx][name]`; index resolved before pop |
+| `pushstring <str>` | Push string literal (rest of line) |
+| `pushnumber <n>` | Push number |
+| `pushboolean <0\|1>` | Push boolean |
+| `pushnil` | Push nil |
+| `pushvalue <idx>` | Push copy of `stack[idx]` |
+| `pcall <nargs> <nresults> <_>` | Call function at `-(nargs+1)`, push `nresults` results |
+| `emptystack` | Clear the entire stack |
+| `settop <n>` | Truncate stack to `n` entries (0 = clear) |
+| `getservice <name>` | Push `game:GetService(name)` |
+| `loop <n>` | Repeat body `n` times; skip to `loopend` if `n <= 0` |
+| `loopend` | End of loop; jump back if iterations remain |
+| `wait <n>` | Yield for `n` seconds via `task.wait` |
 
 ## TASKS.md
 

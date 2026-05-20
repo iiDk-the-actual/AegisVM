@@ -30,6 +30,7 @@ Note: there is no automated test runner. All validation requires Roblox Studio. 
 
 | ID | Description | Commit |
 |----|-------------|--------|
+| - | Add `Aegis.LuaC` - stack-based LuaC instruction interpreter with `run`/`runIn` API; supports getglobal/getfield/setfield/pushstring/pushnumber/pushboolean/pushnil/pushvalue/pcall/emptystack/settop/getservice/loop/loopend/wait | pending commit |
 | - | Fix `requireModule` not setting `script = instance` in child scope; inner modules called `require(script.Child)` against the wrong (outer) module, returning nil and causing "invalid argument" | pending commit |
 | T-08 | Validate `buffer` library in Studio | `ae221dc` |
 | T-09 | Validate `task.*` and `spawn`/`delay` closure wrapping in Studio | `ae221dc` |

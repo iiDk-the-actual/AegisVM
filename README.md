@@ -33,7 +33,8 @@ Aegis.luau          (public API - entry point)
 ├── Runtime.luau    AST evaluator / interpreter
 ├── Scope.luau      lexical scope chain with upvalue semantics
 ├── StdLib.luau     sandboxed standard library
-└── Error.luau      error types and control-flow signal sentinels
+├── Error.luau      error types and control-flow signal sentinels
+└── LuaC.luau       stack-based LuaC instruction interpreter
 ```
 
 Source text flows through three stages:
@@ -159,6 +160,43 @@ local sandbox2 = Aegis.newSandbox()
 Aegis.execAST(sandbox1, ast)
 Aegis.execAST(sandbox2, ast)
 ```
+
+### `Aegis.LuaC.run(source, sourceName?, options?)`
+
+Executes a LuaC stack-machine script in a fresh sandbox. Returns `true` on success or `false, errorMessage` on failure.
+
+```lua
+local ok, err = Aegis.LuaC.run([[
+    getglobal print
+    pushstring Hello from LuaC
+    pcall 1 0 0
+    emptystack
+]])
+```
+
+### `Aegis.LuaC.runIn(sandbox, source, sourceName?)`
+
+Executes a LuaC stack-machine script in an existing sandbox.
+
+```lua
+local sandbox = Aegis.newSandbox()
+Aegis.LuaC.runIn(sandbox, [[
+    getglobal game
+    getfield -1 Players
+    getfield -1 LocalPlayer
+    getfield -1 Character
+    getfield -1 Humanoid
+    pushnumber 100
+    setfield -2 Health
+    emptystack
+]])
+```
+
+LuaC uses the same stack-index conventions as the Lua C API: positive indices count from the bottom of the stack; negative indices count from the top (`-1` = top). Each `getfield <idx> <name>` reads from stack position `<idx>` and pushes the result without removing the source value. `setfield <idx> <name>` pops the top value and assigns it to `stack[idx][name]`, with the index resolved before the pop. `pcall <nargs> <nresults> <_>` expects the function at position `-(nargs+1)` with arguments above it; it removes the function and all args, then pushes exactly `<nresults>` return values.
+
+Additional instructions: `getservice <name>` (shorthand for `game:GetService`), `loop <n>` / `loopend` (counted loops), `wait <n>` (yield via `task.wait`), `pushboolean <0|1>`, `pushnil`.
+
+---
 
 ### `sandbox.scope:defineGlobal(name, value)`
 

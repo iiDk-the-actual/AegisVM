@@ -112,6 +112,24 @@ Error types and control-flow signal sentinels.
 
 ---
 
+## `src/server/Aegis/LuaC.luau`
+Stack-based LuaC instruction interpreter. Executes a text format that mirrors the Lua C API.
+
+| Symbol | What it does |
+|---|---|
+| `LuaC.run(source, sourceName?, options?)` | Execute LuaC source in a fresh sandbox |
+| `LuaC.runIn(sandbox, source, sourceName?)` | Execute LuaC source in an existing sandbox |
+| `parseLines(source)` | Split source into trimmed non-empty instruction lines |
+| `buildLoopMap(instructions)` | Pre-scan to map each `loop` line index to its matching `loopend` index |
+| `execute(instructions, sandbox)` | Main interpreter loop; maintains a virtual stack and program counter |
+| `NIL` sentinel | Placeholder stored on the stack in place of actual nil values |
+
+Supported instructions: `getglobal`, `getfield`, `setfield`, `pushstring`, `pushnumber`,
+`pushboolean`, `pushnil`, `pushvalue`, `pcall`, `emptystack`, `settop`, `getservice`,
+`loop`, `loopend`, `wait`.
+
+---
+
 ## `src/server/Aegis/Constants.luau`
 Compile-time static values for AegisVM. Single source of truth for version strings and name constants.
 

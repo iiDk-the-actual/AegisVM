@@ -131,6 +131,7 @@ local Scope      = require(script.Scope)
 local StdLib     = require(script.StdLib)
 local Error      = require(script.Error)
 local Libraries  = require(script.Libraries)
+local LuaC       = require(script.LuaC)
 
 -- ─── Sandbox object ──────────────────────────────────────────────────
 
@@ -327,6 +328,7 @@ Aegis.Scope      = Scope
 Aegis.StdLib     = StdLib
 Aegis.Error      = Error
 Aegis.Libraries  = Libraries
+Aegis.LuaC       = LuaC
 
 -- Expose the Sandbox constructor directly.
 Aegis.Sandbox = Sandbox

@@ -44,6 +44,10 @@ All core language features are implemented and working:
 
 ## What Was Just Completed
 
+- **`Aegis.LuaC` - stack-based LuaC interpreter** - New module at `src/server/Aegis/LuaC.luau`. Executes a text-based stack machine format that mirrors the Lua C API (getglobal, getfield, setfield, pushstring, pushnumber, pushboolean, pushnil, pushvalue, pcall, emptystack, settop, getservice, loop/loopend, wait). Public API: `Aegis.LuaC.run(source, ...)` for a fresh sandbox, `Aegis.LuaC.runIn(sandbox, source)` for an existing one. All global access goes through the AegisVM sandbox scope so the same security constraints apply. Loops use a program-counter model with a pre-scanned loopEnd map. A NIL sentinel handles nil values on the stack. Added to both project JSON files, exposed as `Aegis.LuaC`, documented in README / CLAUDE.md / FILEMAP.md.
+
+
+
 - **Fix: `requireModule` now sets `script = instance` in child scope** - `StdLib.luau` `requireModule` was creating `Scope.new(scope)` without shadowing `script`. The inherited `script` came from the outer sandbox (the caller's module), so inner modules calling `require(script.Child)` or `script:FindFirstChild("Child")` were resolving against the wrong Instance. `FindFirstChild` returned nil, `require(nil)` threw "Attempted to call require with invalid argument(s)". Fix: one line - `chunkScope:declareLocal("script", instance)` - matches Roblox's native behaviour.
 
 - **Issues #21/#26 - Text filter fixes** - Async mode no longer writes raw text to instance properties (TOS compliance). Raw text is now archived in a weak-key table `rawTexts` inside TextFilter; VM reads of `.Text`/`.PlaceholderText` return the archived raw value so guest scripts see what they assigned. New `TextFilter.filterString(text, userId)` for filtering plain strings (notifications, print/warn). New `Constants.FILTER_OUTPUT = false`: when true, print/warn output is routed through the filter before being displayed. Notifications via `SendNotification:Fire` are filtered when FILTER_TEXT is enabled.
