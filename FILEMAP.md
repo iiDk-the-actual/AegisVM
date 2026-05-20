@@ -119,6 +119,7 @@ Stack-based LuaC instruction interpreter. Executes a text format that mirrors th
 |---|---|
 | `LuaC.run(source, sourceName?, options?)` | Execute LuaC source in a fresh sandbox |
 | `LuaC.runIn(sandbox, source, sourceName?)` | Execute LuaC source in an existing sandbox |
+| `LuaC.cursor(sandbox)` | Returns a single-instruction executor with a persistent stack; call it once per instruction - use as a `luac` global for interactive use |
 | `parseLines(source)` | Split source into trimmed non-empty instruction lines |
 | `buildLoopMap(instructions)` | Pre-scan to map each `loop` line index to its matching `loopend` index |
 | `execute(instructions, sandbox)` | Main interpreter loop; maintains a virtual stack and program counter |

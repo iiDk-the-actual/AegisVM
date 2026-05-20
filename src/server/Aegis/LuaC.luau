@@ -58,11 +58,11 @@
 
     loop <n>
         Begin a block that repeats <n> times. If <n> <= 0, skip to the
-        matching loopend.
+        matching loopend. Not meaningful in cursor mode.
 
     loopend
         End of a loop block. Jump back to the start of the loop body if more
-        iterations remain, otherwise fall through.
+        iterations remain, otherwise fall through. Not meaningful in cursor mode.
 
     wait <n>
         Yield for <n> seconds via task.wait. Useful inside loop bodies.
@@ -107,7 +107,6 @@ local function parseLines(source)
             raw = source:sub(i)
             i = len + 1
         end
-        -- strip CR and surrounding whitespace
         raw = raw:gsub("\r", ""):match("^%s*(.-)%s*$")
         if raw ~= "" then
             table.insert(lines, raw)
@@ -131,173 +130,173 @@ local function buildLoopMap(instructions)
     return loopEnds
 end
 
-local function execute(instructions, sandbox)
-    local loopEnds = buildLoopMap(instructions)
-    local runtime  = sandbox.runtime
-    local stack    = {}
-    local loopStk  = {}  -- stack of { startPc, remaining }
-    local pc       = 1
+-- ── Shared instruction dispatcher ────────────────────────────────────────
+--
+-- Executes one instruction against the given mutable stack.
+--
+-- stack   : the mutable stack array (modified in place - never reassigned)
+-- op/rest : parsed opcode and operand string
+-- runtime : sandbox.runtime  (for tableGet / tableSet)
+-- sandbox : the sandbox object (for scope:get)
+-- pcCtx   : { pc, loopEnds, loopStk } present in execute(), nil in cursor()
+--           When nil, loop/loopend are treated as no-ops.
+--
+-- Returns true if pcCtx.pc was changed (a loop jump occurred).
 
-    -- push / pop helpers
+local function dispatchOp(op, rest, stack, runtime, sandbox, pcCtx)
     local function push(v) table.insert(stack, toStackVal(v)) end
     local function pop()   return fromStackVal(table.remove(stack)) end
     local function peek(idx)
-        local pos = resolveIdx(stack, idx)
-        return fromStackVal(stack[pos])
+        return fromStackVal(stack[resolveIdx(stack, idx)])
     end
 
-    local function getGlobal(name)
-        return sandbox.scope:get(name)
-    end
+    if op == "getglobal" then
+        push(sandbox.scope:get(rest))
 
-    while pc <= #instructions do
-        local line     = instructions[pc]
-        local op, rest = line:match("^(%S+)%s*(.*)")
-        local jumped   = false
-
-        if op == "getglobal" then
-            push(getGlobal(rest))
-
-        elseif op == "getfield" then
-            local idxStr, name = rest:match("^(-?%d+)%s+(.+)")
-            if idxStr then
-                local tbl = peek(tonumber(idxStr))
-                local val = nil
-                if tbl ~= nil then
-                    -- Route through Runtime:tableGet so that FILTER_TEXT raw-text
-                    -- intercepts, __index depth limiting, and interpreter closure
-                    -- dispatch all apply identically to regular Aegis code.
-                    pcall(function() val = runtime:tableGet(tbl, name, nil) end)
-                end
-                push(val)
+    elseif op == "getfield" then
+        local idxStr, name = rest:match("^(-?%d+)%s+(.+)")
+        if idxStr then
+            local tbl = peek(tonumber(idxStr))
+            local val = nil
+            if tbl ~= nil then
+                pcall(function() val = runtime:tableGet(tbl, name, nil) end)
             end
+            push(val)
+        end
 
-        elseif op == "setfield" then
-            local idxStr, name = rest:match("^(-?%d+)%s+(.+)")
-            if idxStr then
-                -- Resolve the table reference BEFORE popping the value so that
-                -- the index is computed against the full stack.
-                local pos = resolveIdx(stack, tonumber(idxStr))
-                local tbl = fromStackVal(stack[pos])
-                local val = pop()
-                if tbl ~= nil then
-                    -- Route through Runtime:tableSet so that FILTER_TEXT routing,
-                    -- Source attribute intercept, and __newindex handling all apply.
-                    pcall(function() runtime:tableSet(tbl, name, val, nil) end)
-                end
+    elseif op == "setfield" then
+        local idxStr, name = rest:match("^(-?%d+)%s+(.+)")
+        if idxStr then
+            -- Resolve the table reference BEFORE popping the value.
+            local pos = resolveIdx(stack, tonumber(idxStr))
+            local tbl = fromStackVal(stack[pos])
+            local val = pop()
+            if tbl ~= nil then
+                pcall(function() runtime:tableSet(tbl, name, val, nil) end)
             end
+        end
 
-        elseif op == "pushstring" then
-            push(rest)
+    elseif op == "pushstring" then
+        push(rest)
 
-        elseif op == "pushnumber" then
-            push(tonumber(rest))
+    elseif op == "pushnumber" then
+        push(tonumber(rest))
 
-        elseif op == "pushboolean" then
-            local n = tonumber(rest)
-            if n ~= nil then
-                push(n ~= 0)
-            else
-                push(rest == "true")
+    elseif op == "pushboolean" then
+        local n = tonumber(rest)
+        push(if n ~= nil then n ~= 0 else rest == "true")
+
+    elseif op == "pushnil" then
+        push(nil)
+
+    elseif op == "pushvalue" then
+        local idx = tonumber(rest)
+        if idx then push(peek(idx)) end
+
+    elseif op == "pcall" then
+        local nargs_s, nresults_s = rest:match("^(%d+)%s+(%d+)")
+        local nargs    = tonumber(nargs_s)    or 0
+        local nresults = tonumber(nresults_s) or 0
+        local funcPos  = #stack - nargs
+        if funcPos >= 1 then
+            local fn   = fromStackVal(stack[funcPos])
+            local args = table.create(nargs)
+            for i = 1, nargs do
+                args[i] = fromStackVal(stack[funcPos + i])
             end
-
-        elseif op == "pushnil" then
-            push(nil)
-
-        elseif op == "pushvalue" then
-            local idx = tonumber(rest)
-            if idx then push(peek(idx)) end
-
-        elseif op == "pcall" then
-            local nargs_s, nresults_s = rest:match("^(%d+)%s+(%d+)")
-            local nargs    = tonumber(nargs_s)    or 0
-            local nresults = tonumber(nresults_s) or 0
-
-            local funcPos = #stack - nargs
-            if funcPos >= 1 then
-                local fn   = fromStackVal(stack[funcPos])
-                local args = table.create(nargs)
-                for i = 1, nargs do
-                    args[i] = fromStackVal(stack[funcPos + i])
-                end
-
-                -- remove function + args
-                for i = #stack, funcPos, -1 do
-                    table.remove(stack, i)
-                end
-
-                if fn ~= nil then
-                    if nresults == 0 then
-                        pcall(fn, table.unpack(args, 1, nargs))
-                    else
-                        local rets = table.pack(pcall(fn, table.unpack(args, 1, nargs)))
-                        if rets[1] then
-                            local nret = rets.n - 1
-                            for i = 1, nresults do
-                                local v = if i <= nret then rets[i + 1] else nil
-                                push(v)
-                            end
+            for i = #stack, funcPos, -1 do
+                table.remove(stack, i)
+            end
+            if fn ~= nil then
+                if nresults == 0 then
+                    pcall(fn, table.unpack(args, 1, nargs))
+                else
+                    local rets = table.pack(pcall(fn, table.unpack(args, 1, nargs)))
+                    if rets[1] then
+                        local nret = rets.n - 1
+                        for i = 1, nresults do
+                            push(if i <= nret then rets[i + 1] else nil)
                         end
                     end
                 end
             end
-
-        elseif op == "emptystack" then
-            stack = {}
-
-        elseif op == "settop" then
-            local n = tonumber(rest) or 0
-            if n <= 0 then
-                stack = {}
-            else
-                while #stack > n do
-                    table.remove(stack)
-                end
-            end
-
-        elseif op == "getservice" then
-            local gameObj = getGlobal("game")
-            local svc     = nil
-            if gameObj ~= nil then
-                pcall(function() svc = gameObj:GetService(rest) end)
-            end
-            push(svc)
-
-        elseif op == "loop" then
-            local n = tonumber(rest) or 0
-            if n <= 0 then
-                local endPc = loopEnds[pc]
-                pc     = endPc and (endPc + 1) or (pc + 1)
-                jumped = true
-            else
-                table.insert(loopStk, { startPc = pc, remaining = n - 1 })
-            end
-
-        elseif op == "loopend" then
-            if #loopStk > 0 then
-                local frame = loopStk[#loopStk]
-                if frame.remaining > 0 then
-                    frame.remaining -= 1
-                    pc     = frame.startPc + 1
-                    jumped = true
-                else
-                    table.remove(loopStk)
-                end
-            end
-
-        elseif op == "wait" then
-            local n = tonumber(rest) or 0
-            task.wait(n)
-
         end
 
+    elseif op == "emptystack" then
+        -- table.clear modifies the existing table in place so that cursor
+        -- closures holding a reference to the same stack see the cleared state.
+        table.clear(stack)
+
+    elseif op == "settop" then
+        local n = tonumber(rest) or 0
+        if n <= 0 then
+            table.clear(stack)
+        else
+            while #stack > n do
+                table.remove(stack)
+            end
+        end
+
+    elseif op == "getservice" then
+        local gameObj = sandbox.scope:get("game")
+        local svc     = nil
+        if gameObj ~= nil then
+            pcall(function() svc = gameObj:GetService(rest) end)
+        end
+        push(svc)
+
+    elseif op == "wait" then
+        task.wait(tonumber(rest) or 0)
+
+    elseif op == "loop" and pcCtx then
+        local n = tonumber(rest) or 0
+        if n <= 0 then
+            local endPc = pcCtx.loopEnds[pcCtx.pc]
+            pcCtx.pc = endPc and (endPc + 1) or (pcCtx.pc + 1)
+            return true
+        else
+            table.insert(pcCtx.loopStk, { startPc = pcCtx.pc, remaining = n - 1 })
+        end
+
+    elseif op == "loopend" and pcCtx then
+        if #pcCtx.loopStk > 0 then
+            local frame = pcCtx.loopStk[#pcCtx.loopStk]
+            if frame.remaining > 0 then
+                frame.remaining -= 1
+                pcCtx.pc = frame.startPc + 1
+                return true
+            else
+                table.remove(pcCtx.loopStk)
+            end
+        end
+
+    end
+
+    return false
+end
+
+-- ── Batch execution (run / runIn) ────────────────────────────────────────
+
+local function execute(instructions, sandbox)
+    local runtime = sandbox.runtime
+    local stack   = {}
+    local pcCtx   = {
+        pc       = 1,
+        loopEnds = buildLoopMap(instructions),
+        loopStk  = {},
+    }
+
+    while pcCtx.pc <= #instructions do
+        local line     = instructions[pcCtx.pc]
+        local op, rest = line:match("^(%S+)%s*(.*)")
+        local jumped   = dispatchOp(op, rest, stack, runtime, sandbox, pcCtx)
         if not jumped then
-            pc += 1
+            pcCtx.pc += 1
         end
     end
 end
 
--- ── Public API ────────────────────────────────────────────────────────
+-- ── Public API ────────────────────────────────────────────────────────────
 
 local LuaC = {}
 
@@ -323,6 +322,38 @@ function LuaC.runIn(sandbox, source, sourceName)
         return false, tostring(err)
     end
     return true
+end
+
+-- Returns a single-instruction executor bound to a persistent stack.
+-- The returned function accepts one instruction string per call and
+-- executes it immediately; the stack survives across calls.
+--
+-- Usage:
+--   local luac = Aegis.LuaC.cursor(sandbox)
+--   luac'getglobal game'
+--   luac'getfield -1 Workspace'
+--   luac'getglobal Instance'
+--   luac'getfield -1 new'
+--   luac'pushstring Part'
+--   luac'pushvalue -4'
+--   luac'pcall 2 1 0'
+--   luac'emptystack'
+--
+-- loop / loopend are not meaningful in cursor mode and are silently ignored.
+-- Inject the returned function as a sandbox global to use it from guest code:
+--   sandbox.scope:defineGlobal("luac", Aegis.LuaC.cursor(sandbox))
+function LuaC.cursor(sandbox)
+    local runtime = sandbox.runtime
+    local stack   = {}
+
+    return function(instruction)
+        local line = tostring(instruction or ""):gsub("\r", ""):match("^%s*(.-)%s*$")
+        if line == "" then return end
+        local op, rest = line:match("^(%S+)%s*(.*)")
+        if op then
+            pcall(dispatchOp, op, rest, stack, runtime, sandbox, nil)
+        end
+    end
 end
 
 return LuaC
