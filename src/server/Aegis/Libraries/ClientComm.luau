@@ -76,6 +76,14 @@ local function ensureSetup(player)
         coreGuiAction.Parent = comms
     end
 
+    -- RemoteEvent: client sends camera state every ~0.1 s
+    local cameraUpdate = comms:FindFirstChild("CameraUpdate")
+    if not cameraUpdate then
+        cameraUpdate = Instance.new("RemoteEvent")
+        cameraUpdate.Name = "CameraUpdate"
+        cameraUpdate.Parent = comms
+    end
+
     -- RemoteFunction: client invokes to filter text server-side.
     -- TextService:FilterStringAsync is server-only; LocalScripts route through
     -- this function so the full filter pipeline runs on the server.
@@ -187,6 +195,47 @@ local function ensureSetup(player)
         end
     end)
 
+    -- ── Camera state ─────────────────────────────────────────────────
+
+    local cs = {
+        FieldOfView  = 70,
+        CFrame       = CFrame.new(),
+        Focus        = CFrame.new(),
+        CameraType   = "Custom",
+        ViewportSize = Vector2.new(0, 0),
+        HeadLocked   = true,
+    }
+
+    cameraUpdate.OnServerEvent:Connect(function(sender, data)
+        if not rawequal(sender, player) then return end
+        if type(data) ~= "table" then return end
+        if type(data.FieldOfView)    == "number"  then cs.FieldOfView  = data.FieldOfView  end
+        if typeof(data.CFrame)       == "CFrame"  then cs.CFrame       = data.CFrame       end
+        if typeof(data.Focus)        == "CFrame"  then cs.Focus        = data.Focus        end
+        if type(data.CameraType)     == "string"  then cs.CameraType   = data.CameraType   end
+        if typeof(data.ViewportSize) == "Vector2" then cs.ViewportSize = data.ViewportSize end
+        if type(data.HeadLocked)     == "boolean" then cs.HeadLocked   = data.HeadLocked   end
+    end)
+
+    -- Emulated Camera object. Read-only: reflects what the client last sent.
+    -- CameraType is returned as an Enum item when possible, matching Roblox's API.
+    local camera = setmetatable({}, {
+        __index = function(_, k)
+            if k == "FieldOfView"  then return cs.FieldOfView
+            elseif k == "CFrame"        then return cs.CFrame
+            elseif k == "Focus"         then return cs.Focus
+            elseif k == "ViewportSize"  then return cs.ViewportSize
+            elseif k == "HeadLocked"    then return cs.HeadLocked
+            elseif k == "ClassName"     then return "Camera"
+            elseif k == "CameraType" then
+                local ok, enumVal = pcall(function() return Enum.CameraType[cs.CameraType] end)
+                return ok and enumVal or cs.CameraType
+            end
+        end,
+        __newindex = function() end,
+        __tostring = function() return "Camera" end,
+    })
+
     -- ── Emulated Mouse ───────────────────────────────────────────────
     -- X and Y are lerped between the two most recent received positions
     -- based on elapsed time since the last update (0.1 s update interval).
@@ -253,7 +302,7 @@ local function ensureSetup(player)
 
     -- ── Finalise ─────────────────────────────────────────────────────
 
-    local state = { comms = comms, mouse = mouse, uis = uis, notifEvent = notifEvent, coreGuiAction = coreGuiAction }
+    local state = { comms = comms, mouse = mouse, uis = uis, camera = camera, notifEvent = notifEvent, coreGuiAction = coreGuiAction }
     playerState[player] = state
 
     -- Remove state when the player leaves the game
@@ -279,6 +328,13 @@ end
 function ClientComm.getMouse(player)
     local state = ensureSetup(player)
     return state and state.mouse
+end
+
+-- Return the emulated Camera for a player (reflects workspace.CurrentCamera data
+-- sent by the client). Sets up comm if needed.
+function ClientComm.getCamera(player)
+    local state = ensureSetup(player)
+    return state and state.camera
 end
 
 -- Return the emulated UserInputService for a player.

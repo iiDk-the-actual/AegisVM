@@ -1096,6 +1096,11 @@ local function buildRoblox(scope, runtime)
                         return ClientComm.getMouse(player)
                     end
                 end
+                if k == "GetCamera" then
+                    return function(_self)
+                        return ClientComm.getCamera(player)
+                    end
+                end
                 local v = player[k]
                 if type(v) == "function" then
                     return function(_, ...) return v(player, ...) end
@@ -1530,7 +1535,30 @@ local function buildRoblox(scope, runtime)
         end,
     })
     scope:defineGlobal("game",      gameProxy)
-    scope:defineGlobal("workspace", workspace)
+
+    -- Workspace proxy: intercepts CurrentCamera to return the owner's emulated
+    -- camera when CLIENT_COMMUNICATION is active. All other accesses pass through.
+    local realWorkspace = workspace
+    local workspaceProxy
+    workspaceProxy = setmetatable({}, {
+        __index = function(_, k)
+            if k == "CurrentCamera" and isClientComm() then
+                local owner = getOwnerReal()
+                if owner then return ClientComm.getCamera(owner) end
+            end
+            local v = realWorkspace[k]
+            if type(v) == "function" then
+                return function(selfArg, ...)
+                    if rawequal(selfArg, workspaceProxy) then selfArg = realWorkspace end
+                    return v(selfArg, ...)
+                end
+            end
+            return v
+        end,
+        __newindex = function(_, k, v) realWorkspace[k] = v end,
+        __tostring = function() return tostring(realWorkspace) end,
+    })
+    scope:defineGlobal("workspace", workspaceProxy)
     scope:defineGlobal("Enum",      Enum)
     scope:defineGlobal("Instance",  Instance)
     scope:defineGlobal("shared",    shared)

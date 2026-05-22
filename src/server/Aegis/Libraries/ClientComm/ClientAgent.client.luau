@@ -18,6 +18,7 @@ local mouseUp       = comms:WaitForChild("MouseUpdate",       10)
 local inputEvent    = comms:WaitForChild("InputEvent",        10)
 local notifEvent    = comms:WaitForChild("NotificationEvent", 10)
 local coreGuiEvent  = comms:WaitForChild("CoreGuiAction",     10)
+local cameraUpdate  = comms:WaitForChild("CameraUpdate",      10)
 
 if not mouseUp or not inputEvent then return end  -- safety: abort if setup failed
 
@@ -28,6 +29,7 @@ RunService.Heartbeat:Connect(function(dt)
     elapsed = elapsed + dt
     if elapsed < 0.1 then return end
     elapsed = elapsed - 0.1
+
     local ok, delta = pcall(function() return UIS:GetMouseDelta() end)
     mouseUp:FireServer({
         x      = mouse.X,
@@ -37,6 +39,21 @@ RunService.Heartbeat:Connect(function(dt)
         deltaX = ok and delta.X or 0,
         deltaY = ok and delta.Y or 0,
     })
+
+    if cameraUpdate then
+        local cam = workspace.CurrentCamera
+        if cam then
+            local camTypeOk, camTypeName = pcall(function() return cam.CameraType.Name end)
+            cameraUpdate:FireServer({
+                FieldOfView  = cam.FieldOfView,
+                CFrame       = cam.CFrame,
+                Focus        = cam.Focus,
+                CameraType   = camTypeOk and camTypeName or "Custom",
+                ViewportSize = cam.ViewportSize,
+                HeadLocked   = cam.HeadLocked,
+            })
+        end
+    end
 end)
 
 -- ─── Mouse button and wheel events (immediate) ───────────────────────
