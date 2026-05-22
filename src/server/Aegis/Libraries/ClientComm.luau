@@ -84,6 +84,14 @@ local function ensureSetup(player)
         cameraUpdate.Parent = comms
     end
 
+    -- RemoteEvent: server fires to push camera property changes to the client
+    local cameraCommand = comms:FindFirstChild("CameraCommand")
+    if not cameraCommand then
+        cameraCommand = Instance.new("RemoteEvent")
+        cameraCommand.Name = "CameraCommand"
+        cameraCommand.Parent = comms
+    end
+
     -- RemoteFunction: client invokes to filter text server-side.
     -- TextService:FilterStringAsync is server-only; LocalScripts route through
     -- this function so the full filter pipeline runs on the server.
@@ -232,7 +240,37 @@ local function ensureSetup(player)
                 return ok and enumVal or cs.CameraType
             end
         end,
-        __newindex = function() end,
+        __newindex = function(_, k, v)
+            -- Update local cs state immediately (optimistic), then push to client.
+            -- CameraType is normalised to a string name for both storage and wire.
+            if k == "FieldOfView" and type(v) == "number" then
+                cs.FieldOfView = v
+                cameraCommand:FireClient(player, k, v)
+            elseif k == "CFrame" and typeof(v) == "CFrame" then
+                cs.CFrame = v
+                cameraCommand:FireClient(player, k, v)
+            elseif k == "Focus" and typeof(v) == "CFrame" then
+                cs.Focus = v
+                cameraCommand:FireClient(player, k, v)
+            elseif k == "HeadLocked" and type(v) == "boolean" then
+                cs.HeadLocked = v
+                cameraCommand:FireClient(player, k, v)
+            elseif k == "CameraType" then
+                local name
+                if type(v) == "string" then
+                    name = v
+                else
+                    local ok, n = pcall(function() return v.Name end)
+                    if ok and type(n) == "string" then name = n end
+                end
+                if name then
+                    cs.CameraType = name
+                    cameraCommand:FireClient(player, k, name)
+                end
+            elseif k == "CameraSubject" and typeof(v) == "Instance" then
+                cameraCommand:FireClient(player, k, v)
+            end
+        end,
         __tostring = function() return "Camera" end,
     })
 

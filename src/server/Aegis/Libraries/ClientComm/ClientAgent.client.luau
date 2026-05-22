@@ -19,6 +19,7 @@ local inputEvent    = comms:WaitForChild("InputEvent",        10)
 local notifEvent    = comms:WaitForChild("NotificationEvent", 10)
 local coreGuiEvent  = comms:WaitForChild("CoreGuiAction",     10)
 local cameraUpdate  = comms:WaitForChild("CameraUpdate",      10)
+local cameraCommand = comms:WaitForChild("CameraCommand",     10)
 
 if not mouseUp or not inputEvent then return end  -- safety: abort if setup failed
 
@@ -148,5 +149,23 @@ end
 if coreGuiEvent then
     coreGuiEvent.OnClientEvent:Connect(function(action, a1, a2)
         handleCoreGuiAction(action, a1, a2)
+    end)
+end
+
+-- ─── Camera command handler ──────────────────────────────────────────────────
+-- Server pushes property writes (e.g. FieldOfView, CFrame, CameraType) to the
+-- client's workspace.CurrentCamera. CameraType arrives as a string name and is
+-- converted back to the Enum item before assignment.
+
+if cameraCommand then
+    cameraCommand.OnClientEvent:Connect(function(prop, value)
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        if prop == "CameraType" then
+            local ok, enumVal = pcall(function() return Enum.CameraType[value] end)
+            pcall(function() cam.CameraType = ok and enumVal or value end)
+        else
+            pcall(function() cam[prop] = value end)
+        end
     end)
 end
