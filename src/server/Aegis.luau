@@ -226,26 +226,43 @@ end
 
 -- Wrap a single value: if it is an AegisVM interpreter closure (a table with
 -- __fn=true), return a native Lua function that dispatches through the runtime
--- so callers outside the interpreter can invoke it directly.  All other values
--- are returned unchanged.
-local function wrapIfClosure(rt, value)
-    if type(value) ~= "table" or not rawget(value, "__fn") then
+-- so callers outside the interpreter can invoke it directly.  If it is a plain
+-- table, recursively wrap any closure values stored inside it (handles the
+-- common pattern of a module returning { fn1 = ..., fn2 = ... }).
+-- visited is used internally to avoid infinite loops on circular tables.
+local function wrapIfClosure(rt, value, visited)
+    if type(value) ~= "table" then
         return value
     end
-    local closure = value
-    return function(...)
-        local callArgs = table.pack(...)
-        local rets = table.pack(pcall(function()
-            local r = rt:callFunctionMulti(closure, callArgs)
-            return table.unpack(r, 1, r.n)
-        end))
-        if not rets[1] then
-            local err = rets[2]
-            if Error.isSignal(err) then return end
-            error(tostring(err), 0)
+    if rawget(value, "__fn") then
+        local closure = value
+        return function(...)
+            local callArgs = table.pack(...)
+            local rets = table.pack(pcall(function()
+                local r = rt:callFunctionMulti(closure, callArgs)
+                return table.unpack(r, 1, r.n)
+            end))
+            if not rets[1] then
+                local err = rets[2]
+                if Error.isSignal(err) then return end
+                error(tostring(err), 0)
+            end
+            return table.unpack(rets, 2, rets.n)
         end
-        return table.unpack(rets, 2, rets.n)
     end
+    -- Plain table - walk its values and wrap any closures in place.
+    visited = visited or {}
+    if visited[value] then return value end
+    visited[value] = true
+    for k, v in pairs(value) do
+        if type(v) == "table" then
+            local w = wrapIfClosure(rt, v, visited)
+            if w ~= v then
+                rawset(value, k, w)
+            end
+        end
+    end
+    return value
 end
 
 -- Execute a pre-compiled AST block in a sandbox.
