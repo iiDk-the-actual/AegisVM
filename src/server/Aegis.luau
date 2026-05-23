@@ -355,6 +355,7 @@ Aegis.StdLib     = StdLib
 Aegis.Error      = Error
 Aegis.Libraries  = Libraries
 Aegis.LuaC       = LuaC
+Aegis.Constants  = Constants
 
 -- Expose the Sandbox constructor directly.
 Aegis.Sandbox = Sandbox
