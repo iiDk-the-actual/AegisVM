@@ -1217,6 +1217,7 @@ local function buildRoblox(scope, runtime)
     -- forwards notification and SetCore/ToggleCoreGui calls to the client
     -- via ClientComm RemoteEvents. Otherwise those calls are silent no-ops.
     local cachedCoreGuiProxy = nil
+    local cachedPlayerGui    = nil  -- real PlayerGui when an owner is resolved
 
     local function buildCoreGuiProxy()
         -- Fire a notification to the owner's client (if resolved and comms active).
@@ -1406,8 +1407,26 @@ local function buildRoblox(scope, runtime)
         return coreGuiProxy
     end
 
-    -- Return the cached CoreGui proxy, building it the first time it is needed.
+    -- Return CoreGui for the sandbox.
+    -- When an owner is resolved, return their real PlayerGui Instance directly
+    -- so guest code can parent GUIs to it. A Parent hook is registered so that
+    -- game.CoreGui.Parent returns game instead of the player.
+    -- Falls back to the proxy table when no owner/PlayerGui is available.
     local function getCoreGui()
+        local owner = getOwnerReal()
+        if owner then
+            if not cachedPlayerGui then
+                local ok, pg = pcall(function()
+                    return owner:FindFirstChildOfClass("PlayerGui")
+                end)
+                if ok and pg then
+                    cachedPlayerGui = pg
+                    runtime.instanceHooks[pg] = runtime.instanceHooks[pg] or {}
+                    runtime.instanceHooks[pg].Parent = function(_) return realGame end
+                end
+            end
+            if cachedPlayerGui then return cachedPlayerGui end
+        end
         if not cachedCoreGuiProxy then
             cachedCoreGuiProxy = buildCoreGuiProxy()
         end
