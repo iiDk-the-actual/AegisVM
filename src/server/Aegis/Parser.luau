@@ -482,7 +482,9 @@ function Parser:parseStatement()
         -- else fall through to expression statement
 
     -- ── Class declaration (Luau) ──────────────────────────────────
-    elseif t.type == "class" then
+    -- Only treat `class` as a keyword when followed by an IDENTIFIER
+    -- (the class name). Otherwise fall through so it acts as a variable.
+    elseif t.type == "class" and (self:peek(1) and self:peek(1).type == "IDENTIFIER") then
         self:advance()
         local className = self:expect("IDENTIFIER", "class name").value
 
