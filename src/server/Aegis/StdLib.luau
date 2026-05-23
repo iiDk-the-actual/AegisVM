@@ -1081,47 +1081,25 @@ local function buildRoblox(scope, runtime)
     -- UserInputService, CoreGui) are emulated via a LocalScript injected into
     -- the owner player's PlayerGui and two RemoteEvents for mouse/input data.
 
-    -- Proxy cache: real Player -> wrapped player table (identity-stable)
-    local playerProxyCache = {}
+    -- Track which players have had instance hooks registered (identity-stable).
+    local playerHooksRegistered = {}
 
-    -- Wrap a real Player so GetMouse() is intercepted; all other members
-    -- fall through to the real object.
-    local function wrapPlayer(player)
-        if not player then return nil end
-        if playerProxyCache[player] then return playerProxyCache[player] end
-        local proxy = setmetatable({}, {
-            __index = function(_, k)
-                if k == "GetMouse" then
-                    return function(_self)
-                        return ClientComm.getMouse(player)
-                    end
-                end
-                if k == "GetCamera" then
-                    return function(_self)
-                        return ClientComm.getCamera(player)
-                    end
-                end
-                local v = player[k]
-                if type(v) == "function" then
-                    return function(_, ...) return v(player, ...) end
-                end
-                return v
-            end,
-            __newindex = function(_, k, v) player[k] = v end,
-            __eq = function(a, b)
-                return rawequal(a, player) or rawequal(b, player)
-            end,
-            __tostring = function() return tostring(player) end,
-        })
-        playerProxyCache[player] = proxy
-        return proxy
+    -- Register GetMouse / GetCamera intercepts on the real Player Instance so
+    -- those methods route through ClientComm without a proxy table wrapper.
+    local function registerPlayerHooks(player)
+        if not player then return end
+        if playerHooksRegistered[player] then return end
+        playerHooksRegistered[player] = true
+        runtime.instanceHooks[player] = runtime.instanceHooks[player] or {}
+        local hooks = runtime.instanceHooks[player]
+        hooks.GetMouse  = function(_) return function() return ClientComm.getMouse(player)  end end
+        hooks.GetCamera = function(_) return function() return ClientComm.getCamera(player) end end
     end
 
     -- Lazy owner resolution. Resolved once and cached; nil is also cached
     -- (logged once with callstack unless VERBOSITY is SUPPRESS).
     local ownerResolved = false
     local cachedOwner   = nil  -- real Player
-    local ownerProxy    = nil  -- wrapPlayer(cachedOwner)
 
     local function resolveOwner()
         if ownerResolved then return end
@@ -1133,7 +1111,7 @@ local function buildRoblox(scope, runtime)
             local ok, cls = pcall(function() return ownerGlobal.ClassName end)
             if ok and cls == "Player" then
                 cachedOwner = ownerGlobal
-                ownerProxy  = wrapPlayer(cachedOwner)
+                registerPlayerHooks(cachedOwner)
                 ClientComm.setup(cachedOwner)
                 return
             end
@@ -1147,7 +1125,7 @@ local function buildRoblox(scope, runtime)
                 local ok, cls = pcall(function() return cur.ClassName end)
                 if ok and cls == "Player" then
                     cachedOwner = cur
-                    ownerProxy  = wrapPlayer(cachedOwner)
+                    registerPlayerHooks(cachedOwner)
                     ClientComm.setup(cachedOwner)
                     return
                 end
@@ -1168,7 +1146,7 @@ local function buildRoblox(scope, runtime)
                             local pok2, pcls = pcall(function() return p.ClassName end)
                             if pok2 and pcls == "Player" then
                                 cachedOwner = p
-                                ownerProxy  = wrapPlayer(cachedOwner)
+                                registerPlayerHooks(cachedOwner)
                                 ClientComm.setup(cachedOwner)
                                 return
                             end
@@ -1196,52 +1174,31 @@ local function buildRoblox(scope, runtime)
         end
     end
 
-    local function getOwnerProxy()
-        resolveOwner()
-        return ownerProxy
-    end
-
     local function getOwnerReal()
         resolveOwner()
         return cachedOwner
     end
 
-    -- RunService proxy: maps RenderStepped -> Stepped for server execution,
-    -- and overrides IsStudio() when Constants.STUDIO_OVERRIDE is non-nil.
-    local realRunService    = realGame:GetService("RunService")
-    local runServiceProxy   = setmetatable({}, {
-        __index = function(_, k)
-            if k == "RenderStepped" then return realRunService.Stepped end
-            if k == "IsStudio" and Constants.STUDIO_OVERRIDE ~= nil then
+    -- Hook RenderStepped -> Stepped and optionally IsStudio on the real RunService.
+    local realRunService = realGame:GetService("RunService")
+    runtime.instanceHooks[realRunService] = {
+        RenderStepped = function(_) return realRunService.Stepped end,
+        IsStudio = function(_)
+            if Constants.STUDIO_OVERRIDE ~= nil then
                 local ov = Constants.STUDIO_OVERRIDE
                 return function() return ov end
             end
-            local v = realRunService[k]
-            if type(v) == "function" then
-                return function(_, ...) return v(realRunService, ...) end
-            end
-            return v
+            local ok, fn = pcall(function() return realRunService.IsStudio end)
+            return ok and fn or nil
         end,
-        __newindex = function(_, k, v) realRunService[k] = v end,
-        __tostring = function() return tostring(realRunService) end,
-    })
+    }
 
-    -- Players proxy: LocalPlayer -> resolved owner.
-    local realPlayers   = realGame:GetService("Players")
-    local playersProxy  = setmetatable({}, {
-        __index = function(_, k)
-            if k == "LocalPlayer" or k == "localPlayer" then
-                return getOwnerProxy()
-            end
-            local v = realPlayers[k]
-            if type(v) == "function" then
-                return function(_, ...) return v(realPlayers, ...) end
-            end
-            return v
-        end,
-        __newindex = function(_, k, v) realPlayers[k] = v end,
-        __tostring = function() return tostring(realPlayers) end,
-    })
+    -- Hook LocalPlayer on the real Players instance.
+    local realPlayers = realGame:GetService("Players")
+    runtime.instanceHooks[realPlayers] = {
+        LocalPlayer = function(_) return getOwnerReal() end,
+        localPlayer = function(_) return getOwnerReal() end,
+    }
 
     -- Helper: return the emulated UserInputService for the owner.
     local function getUIS()
@@ -1457,108 +1414,70 @@ local function buildRoblox(scope, runtime)
         return cachedCoreGuiProxy
     end
 
-    -- ── Game proxy ───────────────────────────────────────────────────
-    local gameProxy
-    gameProxy = setmetatable({}, {
-        __index = function(_, key)
-            -- ── Intercepted methods ──────────────────────────────────────
-            if key == "HttpGet" or key == "HttpGetAsync" then
-                -- game:HttpGet(url [, noCache])  ->  HttpService:GetAsync(url [, noCache])
-                return function(_, url, noCache)
-                    local hs = realGame:GetService("HttpService")
-                    return hs:GetAsync(url, noCache)
+    -- Hook intercepted methods/properties on the real game Instance so the real
+    -- Instance is exposed to host APIs (e.g. Instance.new parent arg) while
+    -- specific keys are still intercepted by tableGet via instanceHooks.
+    runtime.instanceHooks[realGame] = {
+        -- game:HttpGet / HttpGetAsync -> HttpService:GetAsync
+        HttpGet = function(_)
+            return function(_, url, noCache)
+                return realGame:GetService("HttpService"):GetAsync(url, noCache)
+            end
+        end,
+        HttpGetAsync = function(_)
+            return function(_, url, noCache)
+                return realGame:GetService("HttpService"):GetAsync(url, noCache)
+            end
+        end,
+        -- game:GetObjects(url) -> WebRbxmParser (threads owner for REPLICATE_SCRIPTS)
+        GetObjects = function(_)
+            return function(_, url)
+                return InsertService:GetObjects(url, getOwnerReal())
+            end
+        end,
+        -- game:GetService intercepts CoreGui, RunService, Players, UIS
+        GetService = function(_)
+            return function(_, serviceName)
+                if serviceName == "CoreGui" then
+                    return getCoreGui()
                 end
-            elseif key == "GetObjects" then
-                -- game:GetObjects(url)  ->  WebRbxmParser module
-                -- Pass the resolved owner so WebRbxmParser can inject it into
-                -- sub-script sandboxes when REPLICATE_SCRIPTS is enabled.
-                return function(_, url)
-                    return InsertService:GetObjects(url, getOwnerReal())
+                if serviceName == "RunService" and (isClientComm() or Constants.STUDIO_OVERRIDE ~= nil) then
+                    return realRunService
                 end
-            elseif key == "GetService" then
-                return function(_, serviceName)
-                    -- CoreGui is always proxied: the real CoreGui is not safely
-                    -- accessible from a server Script and guest scripts should
-                    -- never receive it directly.
-                    if serviceName == "CoreGui" then
-                        return getCoreGui()
+                if isClientComm() then
+                    if serviceName == "Players" then
+                        return realPlayers
+                    elseif serviceName == "UserInputService" then
+                        return getUIS() or realGame:GetService("UserInputService")
                     end
-                    if serviceName == "RunService" and (isClientComm() or Constants.STUDIO_OVERRIDE ~= nil) then
-                        return runServiceProxy
-                    end
-                    if isClientComm() then
-                        if serviceName == "Players" then
-                            return playersProxy
-                        elseif serviceName == "UserInputService" then
-                            return getUIS() or realGame:GetService("UserInputService")
-                        end
-                    end
-                    return realGame:GetService(serviceName)
                 end
+                return realGame:GetService(serviceName)
             end
+        end,
+        -- game.CoreGui property shortcut
+        CoreGui = function(_) return getCoreGui() end,
+        -- game.Players property shortcut (CLIENT_COMMUNICATION only)
+        Players = function(_)
+            if isClientComm() then return realPlayers end
+            local ok, v = pcall(function() return realGame.Players end)
+            return ok and v or nil
+        end,
+    }
+    scope:defineGlobal("game", realGame)
 
-            -- ── Property shortcuts ───────────────────────────────────────
-            -- CoreGui is always proxied (no CLIENT_COMMUNICATION guard needed).
-            if key == "CoreGui" then
-                return getCoreGui()
-            end
-            if isClientComm() then
-                if key == "Players" then
-                    return playersProxy
-                end
-            end
-
-            -- ── Pass-through ─────────────────────────────────────────────
-            -- Properties return directly; methods are bound to realGame so
-            -- that Roblox receives the correct 'self' (an Instance, not a table).
-            local val = realGame[key]
-            if type(val) == "function" then
-                return function(selfArg, ...)
-                    -- When called as gameProxy:method(...) selfArg is gameProxy;
-                    -- transparently substitute realGame so Roblox accepts it.
-                    -- rawequal avoids triggering the proxy's __eq metamethod.
-                    if rawequal(selfArg, gameProxy) then selfArg = realGame end
-                    return val(selfArg, ...)
-                end
-            end
-            return val
-        end,
-        __newindex = function(_, key, value)
-            realGame[key] = value
-        end,
-        __tostring = function()
-            return tostring(realGame)
-        end,
-        __eq = function(_, other)
-            -- rawequal avoids re-triggering __eq recursively when other IS gameProxy.
-            return rawequal(other, realGame) or rawequal(other, gameProxy)
-        end,
-    })
-    scope:defineGlobal("game",      gameProxy)
-
-    -- Workspace proxy: intercepts CurrentCamera to return the owner's emulated
-    -- camera when CLIENT_COMMUNICATION is active. All other accesses pass through.
+    -- Hook CurrentCamera on the real Workspace Instance.
     local realWorkspace = workspace
-    local workspaceProxy
-    workspaceProxy = setmetatable({}, {
-        __index = function(_, k)
-            if k == "CurrentCamera" and isClientComm() then
+    runtime.instanceHooks[realWorkspace] = {
+        CurrentCamera = function(_)
+            if isClientComm() then
                 local owner = getOwnerReal()
                 if owner then return ClientComm.getCamera(owner) end
             end
-            local v = realWorkspace[k]
-            if type(v) == "function" then
-                return function(selfArg, ...)
-                    if rawequal(selfArg, workspaceProxy) then selfArg = realWorkspace end
-                    return v(selfArg, ...)
-                end
-            end
-            return v
+            local ok, cam = pcall(function() return realWorkspace.CurrentCamera end)
+            return ok and cam or nil
         end,
-        __newindex = function(_, k, v) realWorkspace[k] = v end,
-        __tostring = function() return tostring(realWorkspace) end,
-    })
-    scope:defineGlobal("workspace", workspaceProxy)
+    }
+    scope:defineGlobal("workspace", realWorkspace)
     scope:defineGlobal("Enum",      Enum)
     scope:defineGlobal("Instance",  Instance)
     scope:defineGlobal("shared",    shared)

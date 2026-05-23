@@ -58,8 +58,8 @@ local function multiRet(...)
 end
 
 -- rawget-based tag checks: use rawget so that tables with __index metamethods
--- (such as the game proxy) never trigger Roblox property lookups when AegisVM
--- inspects its own internal type tags (__multi, __fn).
+-- never trigger unexpected side-effects when AegisVM inspects its own internal
+-- type tags (__multi, __fn).
 local function isMulti(v)
     return type(v) == "table" and rawget(v, "__multi") == true
 end
@@ -186,6 +186,10 @@ function Runtime.new(globalScope)
     self.sourceName   = "?"     -- current chunk name; set by Aegis before each execBlock
     self.callStacks   = {}      -- per-coroutine call stacks: [coroutine] = {frame, ...}
     self._currentLine = 0       -- last statement line seen by execStat
+    -- instanceHooks: maps real Roblox instance -> {key -> function(instance) -> value}
+    -- StdLib registers per-key overrides here instead of wrapping instances in proxy tables,
+    -- so the real instance leaks through to host APIs (e.g. Instance.new parent arg).
+    self.instanceHooks = {}
     return self
 end
 
@@ -370,6 +374,13 @@ function Runtime:tableGet(tbl, key, line, depth)
     -- NewScript stores the source as a "Source" attribute; read that instead.
     -- If the instance has no such attribute, error as Roblox normally would.
     elseif t == "userdata" or t == "vector" then
+        -- Check per-instance key overrides registered by StdLib. These replace
+        -- proxy table wrappers so the real Instance still reaches host APIs.
+        local hooks = self.instanceHooks[tbl]
+        if hooks then
+            local hook = hooks[key]
+            if hook ~= nil then return hook(tbl) end
+        end
         if key == "Source" then
             local attrOk, attrVal = pcall(function() return tbl:GetAttribute("Source") end)
             if attrOk and attrVal ~= nil then
