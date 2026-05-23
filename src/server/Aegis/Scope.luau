@@ -57,6 +57,17 @@ function Scope.new(parent, name)
         declared  = {},   -- [varName] = true   (existence flag)
         consts    = {},   -- [varName] = true   (const flag)
         closeList = {},   -- ordered list of names declared with <close>
+        -- Generation tracking for Lua local-scoping semantics:
+        -- A closure created inside  local x = function() ... end  must not
+        -- see x itself (scope of x starts after the declaration).
+        -- Each new declaration increments declareCount; closures record
+        -- capturedAt = scope.declareCount at creation time. When the closure
+        -- is called, its callScope sets parentBarrier/parentBarrierCount so
+        -- that findOwner skips variables declared after capturedAt.
+        declareCount      = 0,
+        declaredAt        = {},   -- [varName] = declareCount at first declaration
+        parentBarrier     = nil,  -- scope object whose vars are generation-gated
+        parentBarrierCount = 0,   -- only vars with declaredAt <= this are visible
     }, Scope)
 end
 
@@ -67,7 +78,14 @@ end
 
 -- Spawn a child scope (inherits from self)
 function Scope:child(name)
-    return Scope.new(self, name)
+    local c = Scope.new(self, name)
+    -- Propagate the closure barrier so that inner blocks (do/end, if, loops)
+    -- inside a closure body also respect the generation limit on the captured scope.
+    if self.parentBarrier then
+        c.parentBarrier      = self.parentBarrier
+        c.parentBarrierCount = self.parentBarrierCount
+    end
+    return c
 end
 
 -- --- Declaration --------------------------------------------------------
@@ -77,6 +95,14 @@ end
 -- isConst: if true, the variable cannot be reassigned after declaration.
 -- isClose: if true, the variable is to-be-closed; appended to closeList.
 function Scope:declareLocal(name, value, isConst, isClose)
+    if not self.declared[name] then
+        -- First declaration: assign a generation so closure barriers can see
+        -- exactly which variables existed when a closure was captured.
+        -- Re-declarations (e.g. LocalFunction's two-step) keep the original
+        -- generation so the closure can see itself (intended recursion).
+        self.declareCount = self.declareCount + 1
+        self.declaredAt[name] = self.declareCount
+    end
     self.declared[name]  = true
     self.variables[name] = value
     if isConst then
@@ -101,7 +127,21 @@ end
 function Scope:findOwner(name)
     local s = self
     while s do
-        if s.declared[name] then return s end
+        if s.declared[name] then
+            -- If this scope is the closure's captured scope (the barrier), only
+            -- return it if the variable was declared before the closure was created.
+            -- This implements Lua's rule that  local x = function() ... end  does
+            -- not let the body see x (scope of x starts after the declaration).
+            if self.parentBarrier == s then
+                if s.declaredAt[name] <= self.parentBarrierCount then
+                    return s
+                end
+                -- Variable was declared after the closure was captured; skip it
+                -- and continue walking up (so the outer binding wins instead).
+            else
+                return s
+            end
+        end
         s = s.parent
     end
     return nil

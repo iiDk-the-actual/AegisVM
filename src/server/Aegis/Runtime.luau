@@ -505,9 +505,10 @@ function Runtime:makeClosure(bodyNode, scope, name)
         params    = bodyNode.params,
         hasVarArg = bodyNode.hasVarArg,
         block     = bodyNode.block,
-        closure   = scope,            -- captured lexical scope
+        closure    = scope,            -- captured lexical scope
+        capturedAt = scope.declareCount, -- generation at capture time (for barrier)
         sourceName = self.sourceName, -- chunk where this closure was defined
-        name      = name,             -- display name for stack traces (may be nil)
+        name       = name,            -- display name for stack traces (may be nil)
     }
 end
 
@@ -582,6 +583,11 @@ function Runtime:callFunctionMulti(fn, args, line)
         end
 
         local callScope = fn.closure:child("function")
+        -- Install the generation barrier so that variables declared in
+        -- fn.closure AFTER this closure was created are not visible inside
+        -- the body (implements  local x = function() ... end  scoping).
+        callScope.parentBarrier      = fn.closure
+        callScope.parentBarrierCount = fn.capturedAt or 0
 
         -- Bind parameters
         for i, paramName in ipairs(fn.params) do
